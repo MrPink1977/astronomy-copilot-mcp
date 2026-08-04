@@ -15,12 +15,16 @@ Scope: upstream behavior only. No production source files were modified.
 | Python | 3.11.11 in `.venv` |
 | uv | 0.9.17 |
 | FastMCP | 3.4.5 |
-| NINA host | `localhost` |
+| NINA host | `127.0.0.1` |
 | NINA port | `1888` |
-| NINA version | Not available; NINA API was offline |
-| Advanced API version | Not available; NINA API was offline |
-| Equipment profile | Not available; NINA API was offline |
-| Equipment inventory | Not available; NINA API was offline |
+| NINA version | Not available through this API version |
+| Advanced API version | 2.2.11.1 |
+| Equipment profile | `NEWForTOMIE` |
+| Configured camera | ZWO ASI224MC |
+| Configured mount | ASCOM iOptron 2017 telescope driver |
+| Configured focuser | ASCOM Celestron USB Motor Focuser |
+| Configured guider | PHD2 Single |
+| Configured plate solver | ASTAP |
 
 The exact dependency resolution is recorded in `docs/BASELINE_DEPENDENCIES.txt`.
 
@@ -80,19 +84,43 @@ Static inspection found 181 decorated definitions and 179 unique names. Later de
 
 ## NINA connectivity
 
-Read-only check:
+The API became available later on 2026-08-04. Read-only check:
 
 ```powershell
-curl.exe --max-time 3 http://localhost:1888/v2/api/version
+curl.exe --max-time 3 http://127.0.0.1:1888/v2/api/version
 ```
 
 Observed result:
 
 ```text
-curl: (7) Failed to connect to localhost:1888: Could not connect to server
+HTTP 200
+{"Response":"2.2.11.1","StatusCode":200,"Success":true,"Type":"API"}
 ```
 
-Because NINA or its Advanced API was not listening, no live status, equipment, image, plate-solving, guiding, sequence, or event calls were attempted. No equipment-changing request was sent.
+The root `/v2/api` endpoint also returned HTTP 200. The installed API is older than the upstream README's stated requirement of Advanced API 2.2.13 or later.
+
+## Live read-only MCP validation
+
+An in-process FastMCP client connected to the live API and called the raw read tools. No equipment-changing request was sent.
+
+| Tool | Result |
+|---|---|
+| `nina_connect` | Connected the software HTTP client to `127.0.0.1:1888`; this did not connect hardware |
+| `nina_get_version` | Failed because `/v2/api/application/version` returned HTTP 404 |
+| `nina_show_profile(active=true)` | Loaded the intended `NEWForTOMIE` profile and configured device identifiers |
+| `nina_get_status` | Succeeded; all ten equipment categories were disconnected |
+| `nina_get_camera_info` | Succeeded; camera disconnected |
+| `nina_get_mount_info` | Succeeded; mount disconnected |
+| `nina_get_guider_info` | Succeeded; guider disconnected |
+| `nina_get_safetymonitor_info` | Succeeded; monitor disconnected and raw wrapper reported `UNSAFE` |
+| `nina_get_weather_info` | Succeeded; weather device disconnected and measurements unavailable |
+| `nina_sequence_json` | Succeeded; start, targets, and end containers were `CREATED` with zero items |
+| `nina_sequence_state` | Succeeded; same empty/created sequence state |
+| `nina_disconnect` | Closed the MCP software HTTP session |
+
+The Advanced API `application/plugins` endpoint listed Advanced API, BahtiFocus, Ground Station, Hocus Focus, Phd2 Tools, PixInsight Tools, Point3D, Scope Control, Three Point Polar Alignment, and Touch 'N' Stars. Application version/start-time/tab endpoints used by newer handlers were unavailable.
+
+The profile response contains sensitive and observatory-specific settings, including credentials. The raw response was not written to the repository. Only the sanitized identifiers above are retained.
 
 ## Baseline findings
 
@@ -103,18 +131,19 @@ Because NINA or its Advanced API was not listening, no live status, equipment, i
 5. FastMCP 3.4.5 can import the server and complete a client handshake.
 6. The effective public surface is 179 tools, not the README badge's 176.
 7. Duplicate definitions make two effective handlers dependent on source order.
-8. Live hardware validation remains pending until NINA and Advanced API are running locally.
+8. The installed Advanced API 2.2.11.1 is below upstream's stated 2.2.13 minimum and lacks endpoints used by effective runtime handlers.
+9. `nina_get_version` is broken on this installation because the later duplicate handler replaces the compatible `/version` handler and calls unavailable `/application/version`.
+10. `nina_get_status` reports “1 devices connected” when all equipment is disconnected because it includes the MCP server connection in the count.
+11. A disconnected safety monitor is rendered as `UNSAFE`; the Copilot layer must distinguish `UNKNOWN` or `UNAVAILABLE` from an authoritative unsafe reading.
+12. Profile reads require mandatory sanitization before logging, fixture capture, or model exposure.
 
 ## Remaining Phase 1 live checklist
 
-Run these only with NINA open and the intended profile loaded:
+The read-only checklist is complete. Remaining controlled writes:
 
-- Record NINA and Advanced API versions.
-- Record the active profile and connected equipment.
-- Call version, overall status, camera info, mount info, guider info, sequence JSON/state, safety monitor, and weather status.
-- Confirm no read operation moves or reconfigures equipment.
+- Prefer upgrading the Advanced API plugin to 2.2.13 or later, then rerun the read-only compatibility check.
 - With the rig in a safe state and user approval, connect the camera.
 - With a covered or otherwise safe optical setup and user approval, capture one short test exposure.
 - Record exact responses, saved-file behavior, and errors.
 
-The baseline branch and preservation tag are published. The baseline remains incomplete only for this live NINA checklist.
+The baseline branch and preservation tag are published. The baseline remains incomplete only for the controlled camera connection and test exposure.
