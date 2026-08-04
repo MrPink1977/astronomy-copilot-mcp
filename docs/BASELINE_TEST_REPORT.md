@@ -18,7 +18,7 @@ Scope: upstream behavior only. No production source files were modified.
 | NINA host | `127.0.0.1` |
 | NINA port | `1888` |
 | NINA version | Not available through this API version |
-| Advanced API version | 2.2.11.1 |
+| Advanced API version | 2.2.15.2 |
 | Equipment profile | `NEWForTOMIE` |
 | Configured camera | ZWO ASI224MC |
 | Configured mount | ASCOM iOptron 2017 telescope driver |
@@ -94,10 +94,10 @@ Observed result:
 
 ```text
 HTTP 200
-{"Response":"2.2.11.1","StatusCode":200,"Success":true,"Type":"API"}
+{"Response":"2.2.15.2","StatusCode":200,"Success":true,"Type":"API"}
 ```
 
-The root `/v2/api` endpoint also returned HTTP 200. The installed API is older than the upstream README's stated requirement of Advanced API 2.2.13 or later.
+The root `/v2/api` endpoint also returned HTTP 200. The API was initially 2.2.11.1 and was upgraded to 2.2.15.2, satisfying the upstream README's stated requirement of Advanced API 2.2.13 or later.
 
 ## Live read-only MCP validation
 
@@ -106,7 +106,7 @@ An in-process FastMCP client connected to the live API and called the raw read t
 | Tool | Result |
 |---|---|
 | `nina_connect` | Connected the software HTTP client to `127.0.0.1:1888`; this did not connect hardware |
-| `nina_get_version` | Failed because `/v2/api/application/version` returned HTTP 404 |
+| `nina_get_version` | Failed because `/v2/api/application/version` returned HTTP 404 on both API 2.2.11.1 and 2.2.15.2 |
 | `nina_show_profile(active=true)` | Loaded the intended `NEWForTOMIE` profile and configured device identifiers |
 | `nina_get_status` | Succeeded; all ten equipment categories were disconnected |
 | `nina_get_camera_info` | Succeeded; camera disconnected |
@@ -118,7 +118,7 @@ An in-process FastMCP client connected to the live API and called the raw read t
 | `nina_sequence_state` | Succeeded; same empty/created sequence state |
 | `nina_disconnect` | Closed the MCP software HTTP session |
 
-The Advanced API `application/plugins` endpoint listed Advanced API, BahtiFocus, Ground Station, Hocus Focus, Phd2 Tools, PixInsight Tools, Point3D, Scope Control, Three Point Polar Alignment, and Touch 'N' Stars. Application version/start-time/tab endpoints used by newer handlers were unavailable.
+The Advanced API `application/plugins` endpoint listed Advanced API, BahtiFocus, Ground Station, Hocus Focus, Phd2 Tools, PixInsight Tools, Point3D, Scope Control, Three Point Polar Alignment, and Touch 'N' Stars. Application version/start-time/tab endpoints used by some upstream handlers were unavailable. Retesting after the upgrade confirmed that `/application/version` remains unavailable.
 
 The profile response contains sensitive and observatory-specific settings, including credentials. The raw response was not written to the repository. Only the sanitized identifiers above are retained.
 
@@ -131,8 +131,8 @@ The profile response contains sensitive and observatory-specific settings, inclu
 5. FastMCP 3.4.5 can import the server and complete a client handshake.
 6. The effective public surface is 179 tools, not the README badge's 176.
 7. Duplicate definitions make two effective handlers dependent on source order.
-8. The installed Advanced API 2.2.11.1 is below upstream's stated 2.2.13 minimum and lacks endpoints used by effective runtime handlers.
-9. `nina_get_version` is broken on this installation because the later duplicate handler replaces the compatible `/version` handler and calls unavailable `/application/version`.
+8. The installed Advanced API was upgraded from 2.2.11.1 to 2.2.15.2 and now satisfies upstream's stated minimum.
+9. `nina_get_version` remains broken after that upgrade because the later duplicate handler replaces the compatible `/version` handler and calls unavailable `/application/version`.
 10. `nina_get_status` reports “1 devices connected” when all equipment is disconnected because it includes the MCP server connection in the count.
 11. A disconnected safety monitor is rendered as `UNSAFE`; the Copilot layer must distinguish `UNKNOWN` or `UNAVAILABLE` from an authoritative unsafe reading.
 12. Profile reads require mandatory sanitization before logging, fixture capture, or model exposure.
@@ -141,7 +141,6 @@ The profile response contains sensitive and observatory-specific settings, inclu
 
 The read-only checklist is complete. Remaining controlled writes:
 
-- Prefer upgrading the Advanced API plugin to 2.2.13 or later, then rerun the read-only compatibility check.
 - With the rig in a safe state and user approval, connect the camera.
 - With a covered or otherwise safe optical setup and user approval, capture one short test exposure.
 - Record exact responses, saved-file behavior, and errors.
