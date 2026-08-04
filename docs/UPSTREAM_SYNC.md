@@ -10,34 +10,34 @@
 
 ## Current remotes
 
-`upstream` is configured for the original project. `origin` is intentionally not configured yet because GitHub CLI is installed but not authenticated and the connected GitHub app does not expose an accessible fork.
+`upstream` is configured for the original project:
+
+```text
+https://github.com/michelebergo/nina_mcp_server.git
+```
+
+`origin` is configured for the user's public fork:
+
+```text
+https://github.com/MrPink1977/astronomy-copilot-mcp.git
+```
 
 Do not point `origin` at the upstream repository. `origin` must be the user's fork.
 
-## Create the fork
+## Published baseline
 
-Authenticate GitHub CLI interactively:
+The fork was created on 2026-08-04. These refs have been pushed to `origin`:
+
+```text
+agent/phase-0-baseline
+upstream-baseline-5c94276
+```
+
+Git HTTPS push authentication succeeded through the configured Windows credential path. GitHub CLI remains separately unauthenticated; run the following before any workflow that specifically requires `gh`:
 
 ```powershell
 gh auth login
 gh auth status
-```
-
-Then create or connect the fork:
-
-```powershell
-gh repo fork michelebergo/nina_mcp_server --clone=false --remote=false
-git remote add origin https://github.com/YOUR_USERNAME/astronomy-copilot-mcp.git
-git remote -v
-```
-
-If GitHub creates the fork as `nina_mcp_server`, either keep that name or rename it on GitHub before adding `origin`. Confirm the exact repository URL rather than guessing the account name.
-
-Push the preserved tag and baseline branch only after verifying `origin`:
-
-```powershell
-git push origin upstream-baseline-5c94276
-git push -u origin agent/phase-0-baseline
 ```
 
 ## Regular upstream sync

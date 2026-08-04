@@ -117,4 +117,4 @@ Run these only with NINA open and the intended profile loaded:
 - With a covered or otherwise safe optical setup and user approval, capture one short test exposure.
 - Record exact responses, saved-file behavior, and errors.
 
-The baseline is locally complete except for this live checklist and GitHub publication.
+The baseline branch and preservation tag are published. The baseline remains incomplete only for this live NINA checklist.
