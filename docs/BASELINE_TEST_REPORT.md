@@ -122,6 +122,47 @@ The Advanced API `application/plugins` endpoint listed Advanced API, BahtiFocus,
 
 The profile response contains sensitive and observatory-specific settings, including credentials. The raw response was not written to the repository. Only the sanitized identifiers above are retained.
 
+## Controlled camera and exposure validation
+
+The user explicitly approved connecting only the configured ZWO ASI224MC and taking one one-second exposure. No mount, focuser, guider, cooling, plate-solving, or sequence action was requested.
+
+The camera already reported connected immediately before `nina_connect_camera` was called. The connect call succeeded without changing the observed state. Camera telemetry after the call:
+
+| Property | Value |
+|---|---|
+| State | Idle |
+| Sensor | 1304 x 976, 16-bit, 3.75 micrometre pixels |
+| Cooling | Unsupported/off |
+| Exposing | False |
+
+The single approved capture used:
+
+```text
+duration=1.0
+gain=unchanged
+download=true
+quality=-1 (PNG preview)
+solve=false
+```
+
+The exposure completed successfully. The preview was saved outside the repository under the configured local NINA image directory and was not committed. The camera returned to idle, remained connected, and cooling remained off.
+
+Immediate capture statistics:
+
+| Measurement | Value |
+|---|---:|
+| Detected stars | 83 |
+| HFR | 1.3996 |
+| Median | 13,297 |
+| Mean | 13,389.72 |
+| Minimum | 850 |
+| Maximum | 61,090 |
+| Standard deviation | 2,986.67 |
+
+The maximum is below the 16-bit ceiling, so the frame was not completely clipped. Visual inspection showed a sparse but recognizable star field with substantial color/background noise, consistent with a short uncooled color-camera snapshot. No gross trailing or severe defocus was obvious at preview scale.
+
+The image-history endpoint recorded one `SNAPSHOT` from the ZWO ASI224MC at one second, gain 350, offset 116, and sensor temperature 27.2 C. However, its statistics reported `stars=-1`, `HFR=NaN`, mean 1,898.38, and median 1,872. Those values conflict with the immediate capture-statistics endpoint and likely describe a different processing stage. The future Copilot layer must label the statistics source and must not combine these values as if they were one measurement set.
+
 ## Baseline findings
 
 1. The isolated automated suite is healthy: 54 tests pass.
@@ -136,13 +177,11 @@ The profile response contains sensitive and observatory-specific settings, inclu
 10. `nina_get_status` reports “1 devices connected” when all equipment is disconnected because it includes the MCP server connection in the count.
 11. A disconnected safety monitor is rendered as `UNSAFE`; the Copilot layer must distinguish `UNKNOWN` or `UNAVAILABLE` from an authoritative unsafe reading.
 12. Profile reads require mandatory sanitization before logging, fixture capture, or model exposure.
+13. Camera connection and one controlled one-second snapshot succeed end to end through MCP.
+14. Immediate capture statistics and image-history statistics disagree materially; source and processing stage must be explicit in normalized responses.
 
-## Remaining Phase 1 live checklist
+## Phase 1 completion
 
-The read-only checklist is complete. Remaining controlled writes:
+The read-only checklist, controlled camera connection, and one short test exposure are complete. Exact results, saved-preview behavior, and observed errors are recorded above. The baseline branch and preservation tag are published.
 
-- With the rig in a safe state and user approval, connect the camera.
-- With a covered or otherwise safe optical setup and user approval, capture one short test exposure.
-- Record exact responses, saved-file behavior, and errors.
-
-The baseline branch and preservation tag are published. The baseline remains incomplete only for the controlled camera connection and test exposure.
+Phase 1 is complete. Physical motion, guiding, cooling, plate solving, and sequence execution were not part of this baseline and remain untested.
