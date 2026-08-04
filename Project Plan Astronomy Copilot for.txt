@@ -1,0 +1,759 @@
+Project Plan: Astronomy Copilot for NINA
+Core goal
+
+Fork michelebergo/nina_mcp_server and turn it from a large collection of raw NINA API controls into an intelligent astronomy operator for Codex.
+
+The first useful version should let you say:
+
+“Check the whole observatory, explain anything that is wrong, and help me take a test image.”
+
+Codex should then:
+
+Read the NINA equipment state.
+Check the camera, mount, guider and plate solver.
+Identify obvious configuration or connection problems.
+Take a test exposure when requested.
+Analyze the result and recent errors.
+Recommend one clear corrective action.
+Execute equipment-changing actions only after approval.
+
+The existing MCP already translates AI tool calls into NINA Advanced API requests and exposes extensive NINA control. We will reuse that instead of recreating the API bridge.
+
+What we are building
+Working name
+
+Astronomy Copilot MCP
+
+Later it could support APT, PHD2, Stellarium, Home Assistant and weather systems, but version one supports:
+
+Codex
+   │
+   │ MCP
+   ▼
+Astronomy Copilot MCP
+   │
+   ├── High-level astronomy tools
+   ├── Diagnostics and recovery logic
+   ├── Session state and event history
+   └── Existing NINA MCP functions
+            │
+            ▼
+      NINA Advanced API
+            │
+            ▼
+ Camera · Mount · PHD2 · Focuser · Solver
+What we are not building
+
+We are not rebuilding:
+
+NINA
+NINA’s sequencer
+NINA’s device drivers
+PHD2 guiding
+plate solving
+target scheduling
+ASCOM
+every raw NINA API endpoint
+
+The fork already exposes much of NINA’s equipment and imaging surface. The upstream project reports broad Advanced API coverage and already includes event handling and some scheduler-related functions.
+
+Our value is the layer that decides:
+
+what information is relevant,
+whether the equipment is ready,
+why an operation failed,
+what action should happen next,
+and whether that action requires approval.
+Version-one success criteria
+
+Version one is successful when you can operate your current rig through Codex and complete this workflow:
+
+1. Start NINA
+2. Load the saved equipment profile
+3. Start the Astronomy Copilot MCP
+4. Ask Codex: “Check my observatory”
+5. Receive a useful equipment report
+6. Connect equipment
+7. Take a test exposure
+8. Diagnose a failure or evaluate the frame
+9. Plate solve and center a target
+10. Start an existing NINA sequence
+11. Safely stop and park
+
+It does not need autonomous overnight control yet.
+
+Phase 0 — Preserve the upstream foundation
+Objective
+
+Create your fork without losing the ability to receive upstream improvements.
+
+Actions
+Fork:
+michelebergo/nina_mcp_server
+
+into your GitHub account.
+
+Suggested repository name:
+
+astronomy-copilot-mcp
+Clone your fork:
+cd C:\AI_Projects
+git clone https://github.com/YOUR_USERNAME/astronomy-copilot-mcp.git
+cd astronomy-copilot-mcp
+Add the original repository as upstream:
+git remote add upstream https://github.com/michelebergo/nina_mcp_server.git
+git remote -v
+Create a development branch:
+git checkout -b develop
+Tag or preserve the untouched starting state:
+git tag upstream-baseline
+git push origin upstream-baseline
+Result
+
+You have:
+
+origin — your fork
+upstream — the original project
+main — stable branch
+develop — active work
+upstream-baseline — the exact original starting point
+Phase 1 — Run the existing MCP unchanged
+Objective
+
+Prove that the existing project can talk to your NINA installation before changing code.
+
+This is essential. Otherwise, every later failure could be caused by your modifications or by the base installation.
+
+Requirements
+
+On the observatory laptop:
+
+NINA 3.x
+NINA Advanced API plugin
+Python 3.10+
+uv or a Python virtual environment
+Codex MCP support
+NINA running with the API enabled
+
+The existing project expects NINA’s Advanced API, normally at:
+
+http://localhost:1888/v2/api
+
+The upstream documentation describes the MCP as a Python process that receives MCP calls and translates them into REST calls to NINA.
+
+First verification
+
+With NINA open and Advanced API enabled:
+
+curl http://localhost:1888/v2/api/version
+
+Expected result: JSON containing the API version.
+
+Then run the existing MCP server exactly as documented.
+
+Initial tests
+
+Test only read operations first:
+
+get NINA version
+get camera status
+get mount status
+get guider status
+get connected equipment
+get loaded profile
+get current sequence status
+
+Then test one controlled write:
+
+connect the camera
+take one short exposure
+stop the exposure
+Deliverable
+
+Create:
+
+docs/BASELINE_TEST_REPORT.md
+
+Record:
+
+NINA version
+Advanced API version
+Python version
+MCP launch command
+which tools worked
+which tools failed
+exact error messages
+your current equipment
+
+Do not modify the MCP until this baseline works.
+
+Phase 2 — Inventory and classify the existing tools
+Objective
+
+Understand what the fork already provides.
+
+The repository advertises a very large tool surface. Presenting hundreds of tools directly to Codex can create poor tool selection and unnecessary risk.
+
+Create a tool inventory
+
+Generate:
+
+docs/EXISTING_TOOL_INVENTORY.md
+
+Classify every existing tool into these groups:
+
+Group	Examples
+Read-only status	camera state, mount state, temperatures
+Low-risk control	start preview, change exposure
+Motion	slew, park, unpark, focuser movement
+Session control	start, stop or modify sequence
+Environmental	dome, shutter, weather
+File access	images, logs, sequence files
+Administrative	settings, profiles, API configuration
+
+Add these properties to each tool:
+
+Tool name
+Purpose
+Read or write
+Equipment affected
+Reversible
+Requires confirmation
+Possible physical consequence
+Useful to first release
+Why this matters
+
+Codex should not see 176 equally important operations.
+
+A request such as:
+
+“Get me ready to image Regulus”
+
+should invoke one controlled workflow, not require the model to improvise across a large unstructured API.
+
+Phase 3 — Build the high-level tool layer
+Objective
+
+Create a small, intelligent public tool surface while preserving raw tools internally.
+
+Initial public tools
+Read-only tools
+get_observatory_status
+get_equipment_summary
+get_imaging_readiness
+get_guiding_status
+get_latest_error
+get_session_timeline
+get_latest_image_metadata
+Controlled imaging tools
+connect_observatory
+capture_test_frame
+set_preview_settings
+plate_solve_current_frame
+center_target
+start_guiding
+stop_guiding
+start_existing_sequence
+pause_sequence
+stop_sequence_safely
+park_observatory
+Diagnostic tools
+diagnose_camera_failure
+diagnose_plate_solve_failure
+diagnose_guiding_problem
+diagnose_mount_problem
+recommend_next_action
+Example: get_imaging_readiness
+
+Instead of merely returning raw equipment data, it should produce:
+
+{
+  "ready": false,
+  "summary": "The mount and imaging camera are connected, but guiding is only looping.",
+  "blocking_issues": [
+    {
+      "component": "PHD2",
+      "issue": "No guide star selected and guiding has not started.",
+      "recommended_action": "Select a guide star and start guiding."
+    }
+  ],
+  "warnings": [
+    {
+      "component": "Mount",
+      "issue": "Mount time differs from the computer by 75 seconds."
+    }
+  ]
+}
+
+This is the product—not simply exposing another API endpoint.
+
+Phase 4 — Add deterministic diagnostic rules
+Objective
+
+Make the system useful before adding complicated AI reasoning.
+
+The MCP should identify common problems through explicit rules.
+
+First rule library
+Plate-solving failures
+
+Detect combinations such as:
+
+very small sensor
+long focal length
+too-short solve exposure
+too few detected stars
+focal length missing or incorrect
+camera saturated
+poor focus
+ASTAP missing
+database missing
+mount coordinates unreasonable
+
+Output:
+
+Most likely cause
+Evidence
+Recommended first action
+Second action if it fails
+ZWO camera failures
+
+Recognize:
+
+ASI_ERROR_GENERAL_ERROR
+image download failure
+exposure control failure
+camera busy
+repeated disconnects
+likely USB congestion
+two ZWO cameras sharing a hub
+PHD2 failures
+
+Recognize:
+
+offline
+server disabled
+looping but not guiding
+no star selected
+calibration incomplete
+high RA RMS
+high DEC RMS
+guiding lost after slew or meridian flip
+Mount failures
+
+Recognize:
+
+parked state
+tracking disabled
+wrong time or location
+invalid zero position
+slew rejected
+horizon or pier-limit conflicts
+sidereal/lunar tracking mismatch for the task
+Store rules separately
+astronomy_copilot/
+    diagnostics/
+        camera_rules.py
+        plate_solve_rules.py
+        guider_rules.py
+        mount_rules.py
+        sequence_rules.py
+
+Do not bury these rules inside tool handlers.
+
+Phase 5 — Add a session-state model
+Objective
+
+Prevent the agent from treating every command as an isolated request.
+
+The copilot should know whether the observatory is:
+
+OFFLINE
+STARTING
+CONNECTED
+PREVIEWING
+SLEWING
+CENTERING
+GUIDING
+IMAGING
+PAUSED
+RECOVERING
+PARKING
+SAFE
+ERROR
+Why this matters
+
+A command can be valid in one state and inappropriate in another.
+
+Examples:
+
+Do not change camera settings during an active exposure.
+Do not park while a slew is underway.
+Do not start guiding before the guide camera is connected.
+Do not plate solve a saturated lunar frame.
+Do not start a sequence while another sequence is running.
+
+The existing project already has event-related work that can support a stateful, event-driven system instead of constant polling. Use that foundation rather than rebuilding it.
+
+Phase 6 — Add approval and action policies
+Objective
+
+Let Codex help without allowing uncontrolled hardware movement.
+
+Action levels
+Level 0 — Automatic, read-only
+
+No confirmation:
+
+get status
+read logs
+inspect image metadata
+analyze recent errors
+calculate image scale
+inspect sequence state
+Level 1 — Low-risk writes
+
+May execute with general approval:
+
+change preview exposure
+start or stop looping
+connect software devices
+take a test frame
+start plate solving
+Level 2 — Physical movement
+
+Explicit approval:
+
+slew mount
+move focuser significantly
+rotate dome
+open shutter
+unpark
+initiate meridian flip
+Level 3 — Session-ending actions
+
+Explicit approval unless emergency policy permits:
+
+stop sequence
+park mount
+close dome
+disconnect equipment
+shut down software or computer
+Add a dry-run mode
+
+Every workflow should support:
+
+dry_run=true
+
+Example response:
+
+I would:
+1. Stop the current preview loop.
+2. Set exposure to 4 seconds and gain to 100.
+3. Capture one frame.
+4. Run ASTAP.
+5. Slew by the returned offset.
+6. Capture and solve again.
+
+No commands were executed.
+Phase 7 — Add image and FITS analysis
+Objective
+
+Allow the copilot to inspect whether imaging is actually producing useful data.
+
+Version-one measurements
+
+From the newest frame:
+
+image dimensions
+bit depth
+mean and median
+minimum and maximum
+saturation percentage
+detected star count
+approximate HFR/FWHM
+star ellipticity
+background gradient
+hot-pixel count
+clipping
+FITS exposure, gain, temperature and filter metadata
+First diagnoses
+
+The tool should distinguish:
+
+completely saturated image
+lens cap on
+severe defocus
+too few stars for plate solving
+likely trailing
+hot pixels
+dust shadows
+vignetting
+severe background gradient
+
+This is where your assistant becomes meaningfully better than a generic NINA remote control.
+
+Phase 8 — Integrate PHD2 directly
+
+NINA can expose some guider information, but direct PHD2 access may provide richer diagnostics.
+
+Add a dedicated adapter:
+
+adapters/phd2.py
+
+Potential data:
+
+guiding state
+selected guide star
+RA RMS
+DEC RMS
+total RMS
+calibration state
+lost-star events
+dither state
+guide corrections
+recent PHD2 log lines
+
+High-level tool:
+
+analyze_guiding(window_minutes=5)
+
+Example output:
+
+Total RMS averaged 1.4 arcseconds over five minutes.
+DEC accounts for 72% of the error and corrections are predominantly northward.
+This pattern is consistent with polar-alignment drift or DEC backlash rather
+than poor seeing alone.
+Phase 9 — Codex skill and operating instructions
+Objective
+
+Teach Codex how to use the MCP consistently.
+
+The MCP gives Codex capabilities.
+
+The skill gives Codex operating procedures.
+
+Create:
+
+skills/astronomy-copilot/SKILL.md
+
+It should define:
+
+startup workflow
+shutdown workflow
+target-centering workflow
+preview and focusing workflow
+plate-solving recovery procedure
+camera-error recovery procedure
+guider-error recovery procedure
+action confirmation policy
+interpretation of common NINA states
+when to stop rather than repeatedly retry
+
+Example rule:
+
+When plate solving fails, do not immediately repeat the same request.
+First inspect image dimensions, saturation, star count, exposure, gain,
+focus estimate and configured focal length. Change only one variable per retry.
+Phase 10 — Your first complete workflow
+
+The first end-to-end workflow should be:
+
+prepare_for_imaging
+
+Input:
+
+{
+  "target": "Regulus",
+  "test_exposure_seconds": 3,
+  "require_guiding": true
+}
+
+Process:
+
+Check NINA and Advanced API availability.
+Read the active equipment profile.
+Connect required equipment.
+Verify mount clock, location and tracking state.
+Confirm the mount is unparked.
+Verify camera settings.
+Confirm PHD2 is reachable.
+Slew near the target.
+Capture a solve frame.
+Check star count and saturation.
+Adjust solve exposure if necessary.
+Plate solve.
+Recenter.
+Start guiding.
+Wait for acceptable guiding.
+Capture a final test frame.
+Return an imaging-readiness report.
+
+This workflow alone would have handled much of the troubleshooting from your first NINA session.
+
+Repository layout
+astronomy-copilot-mcp/
+│
+├── upstream/
+│   └── existing MCP compatibility layer
+│
+├── astronomy_copilot/
+│   ├── adapters/
+│   │   ├── nina.py
+│   │   ├── phd2.py
+│   │   └── stellarium.py
+│   │
+│   ├── tools/
+│   │   ├── status.py
+│   │   ├── imaging.py
+│   │   ├── guiding.py
+│   │   ├── diagnostics.py
+│   │   └── safety.py
+│   │
+│   ├── workflows/
+│   │   ├── startup.py
+│   │   ├── center_target.py
+│   │   ├── recover_camera.py
+│   │   └── shutdown.py
+│   │
+│   ├── diagnostics/
+│   │   ├── rules.py
+│   │   ├── camera.py
+│   │   ├── mount.py
+│   │   ├── plate_solving.py
+│   │   └── guiding.py
+│   │
+│   ├── image_analysis/
+│   │   ├── fits.py
+│   │   ├── stars.py
+│   │   └── quality.py
+│   │
+│   ├── state/
+│   │   ├── observatory.py
+│   │   └── events.py
+│   │
+│   └── policy/
+│       ├── approvals.py
+│       └── limits.py
+│
+├── tests/
+│   ├── unit/
+│   ├── mocked_nina/
+│   └── hardware_integration/
+│
+├── docs/
+│   ├── BASELINE_TEST_REPORT.md
+│   ├── EXISTING_TOOL_INVENTORY.md
+│   ├── ARCHITECTURE.md
+│   └── DEVELOPMENT_PLAN.md
+│
+├── skills/
+│   └── astronomy-copilot/
+│       └── SKILL.md
+│
+├── README.md
+├── CHANGELOG.md
+└── LICENSE
+Testing strategy
+Never develop first against live hardware only
+
+Create three test levels.
+
+1. Unit tests
+
+No NINA or hardware.
+
+Test:
+
+diagnostic rules
+state transitions
+confirmation logic
+parameter validation
+response formatting
+2. Mock NINA server
+
+A local fake API that returns saved responses.
+
+Scenarios:
+
+camera connected
+camera download failed
+mount parked
+plate solve failed
+guider offline
+sequence running
+sequence failed
+3. Hardware integration tests
+
+Run only when explicitly enabled:
+
+$env:ALLOW_HARDWARE_TESTS="true"
+pytest tests\hardware_integration
+
+Start with read-only operations.
+
+Development milestones
+Milestone 1 — Existing bridge works
+Fork created
+upstream remote configured
+Advanced API reachable
+MCP connects to Codex
+read-only tool calls work
+one test exposure works
+Milestone 2 — Useful status assistant
+get_observatory_status
+get_imaging_readiness
+get_latest_error
+clean plain-language output
+tool inventory complete
+Milestone 3 — Diagnostic assistant
+plate-solve diagnosis
+ZWO camera diagnosis
+mount diagnosis
+PHD2 diagnosis
+recommended next action
+Milestone 4 — Controlled operator
+connect equipment
+capture preview
+plate solve
+center target
+start guiding
+start existing sequence
+safe stop and park
+approvals and dry-run mode
+Milestone 5 — Image-quality assistant
+FITS metadata
+saturation
+star count
+focus estimate
+trailing estimate
+hot-pixel detection
+Milestone 6 — Personal observatory integration
+Home Assistant status
+all-sky camera
+weather
+dew risk
+notifications
+WarRoom dashboard
+Milestone 7 — Public beta
+installer
+configuration wizard
+documented supported NINA versions
+mock mode
+safe defaults
+release package
+issue templates
+user documentation
+The first practical starting task
+
+Do not ask Codex to “build the whole astronomy copilot.”
+
+Give it this first assignment:
+
+Fork and baseline the upstream project without changing its behavior. Run its tests, inventory its files and MCP tools, document the architecture, identify the NINA Advanced API client layer, and produce a baseline report. Do not refactor or add features yet.
+
+After that succeeds, the next assignment is:
+
+Add a single new read-only MCP tool named get_observatory_status that combines existing NINA status calls into one normalized response. Add mocked tests and documentation. Do not modify existing raw tools.
+
+That is the correct starting point: one useful vertical slice, fully tested, before expanding the system.
