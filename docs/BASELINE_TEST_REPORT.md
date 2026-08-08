@@ -159,7 +159,7 @@ Immediate capture statistics:
 | Maximum | 61,090 |
 | Standard deviation | 2,986.67 |
 
-The maximum is below the 16-bit ceiling, so the frame was not completely clipped. Visual inspection showed a sparse but recognizable star field with substantial color/background noise, consistent with a short uncooled color-camera snapshot. No gross trailing or severe defocus was obvious at preview scale.
+The maximum is below the 16-bit ceiling, so the frame was not completely clipped. Visual inspection showed a dark/noisy frame with colored speckles. On this frame, the reported 83 detections are likely noise or hot-pixel candidates rather than confirmed stars. The reported HFR is therefore not a trustworthy focus measurement, and the frame cannot support conclusions about trailing or focus quality.
 
 The image-history endpoint recorded one `SNAPSHOT` from the ZWO ASI224MC at one second, gain 350, offset 116, and sensor temperature 27.2 C. However, its statistics reported `stars=-1`, `HFR=NaN`, mean 1,898.38, and median 1,872. Those values conflict with the immediate capture-statistics endpoint and likely describe a different processing stage. The future Copilot layer must label the statistics source and must not combine these values as if they were one measurement set.
 
@@ -179,6 +179,7 @@ The image-history endpoint recorded one `SNAPSHOT` from the ZWO ASI224MC at one 
 12. Profile reads require mandatory sanitization before logging, fixture capture, or model exposure.
 13. Camera connection and one controlled one-second snapshot succeed end to end through MCP.
 14. Immediate capture statistics and image-history statistics disagree materially; source and processing stage must be explicit in normalized responses.
+15. Star-detector output from this dark/noisy snapshot is not a validated star count; image-quality claims require a suitable light frame and controlled analysis.
 
 ## Phase 1 completion
 
