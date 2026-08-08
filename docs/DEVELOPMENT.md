@@ -83,3 +83,16 @@ uv run pytest -m hardware
 
 The flags enable test selection; they are not approval-plan IDs and do not bypass the server's
 Phase 4 approval policy. Keep them unset during routine development.
+
+The Phase 7 live pre-motion acceptance harness requires a third opt-in plus an explicit target:
+
+```powershell
+$env:ALLOW_PHASE7_WORKFLOW="true"
+$env:PHASE7_TARGET_NAME="Approved daylight target"
+$env:PHASE7_RA_HOURS="10.0"
+$env:PHASE7_DEC_DEGREES="20.0"
+uv run pytest tests/hardware_integration/test_phase7_workflow_gate.py -m hardware
+```
+
+This harness may connect configured equipment, capture bounded frames, and plate solve. It must
+stop at the Level 2 centering approval boundary; the flags are not a centering plan ID.

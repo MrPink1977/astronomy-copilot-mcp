@@ -403,6 +403,10 @@ class SessionService:
         await self.start()
         return self.runtime.timeline(cursor, limit)
 
+    def current_timeline(self, cursor: int = 0, limit: int = 100) -> SessionTimeline:
+        """Return current bounded history without starting network activity."""
+        return self.runtime.timeline(cursor, limit)
+
     async def guard(self, action: str) -> StateGuardDecision:
         await self.reconcile()
         return evaluate_action_guard(action, self.runtime.state, self.runtime.facts)

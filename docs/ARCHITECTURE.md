@@ -117,6 +117,20 @@ an absent saturation reference, or insufficient point-source candidates remain e
 `UNAVAILABLE`; they are not converted into zero values or negative findings. The service returns
 only normalized scalar evidence and never sends image bytes to NINA or any external service.
 
+## Supervised imaging workflow
+
+Phase 7 adds `astronomy_copilot.workflows.prepare_for_imaging`, which composes the reviewed action,
+readiness, session, and approval services without weakening their individual policies. A first call
+creates an immutable, expiring plan and performs no network or hardware writes. Approved execution
+may run bounded Level 1 steps, but it stops before centering and returns the exact existing Level 2
+action plan. Resumption requires the same workflow parameters and that exact unconsumed plan ID.
+
+Workflow records retain current step states, action results, bounded recovery-variable changes, and
+a structured workflow timeline. Every execution and resume refreshes positive safety-monitor,
+contradiction, session-state, and telemetry-age evidence. Failures reconcile and return the known
+session timeline plus readiness instead of silently continuing. Plate-solve retry changes only
+solve exposure and is limited to at most three attempts.
+
 ## Test architecture
 
 Current tests exercise:

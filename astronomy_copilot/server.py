@@ -29,16 +29,20 @@ from astronomy_copilot.models.diagnostics import (
 from astronomy_copilot.models.image_analysis import FitsAnalysisInput, FitsAnalysisReport
 from astronomy_copilot.models.session import SessionTimeline
 from astronomy_copilot.models.status import ObservatoryStatus
+from astronomy_copilot.models.workflow import PrepareForImagingInput, PrepareForImagingReport
 from astronomy_copilot.policy.approvals import ActionRuntime
+from astronomy_copilot.policy.workflow_plans import WorkflowRuntime
 from astronomy_copilot.services.actions import ControlledActionService
 from astronomy_copilot.services.image_analysis import FitsAnalysisService
 from astronomy_copilot.services.readiness import ImagingReadinessService
 from astronomy_copilot.services.session import SessionRuntime, SessionService
 from astronomy_copilot.services.status import ObservatoryStatusService
+from astronomy_copilot.workflows.prepare_for_imaging import PrepareForImagingService
 
 mcp = FastMCP("Astronomy Copilot")
 action_runtime = ActionRuntime()
 session_runtime = SessionRuntime()
+workflow_runtime = WorkflowRuntime()
 _session_service: SessionService | None = None
 
 
@@ -74,6 +78,20 @@ def build_session_service() -> SessionService:
             NinaEventAdapter(host=host, port=port, timeout_seconds=timeout),
         )
     return _session_service
+
+
+def build_prepare_for_imaging_service() -> PrepareForImagingService:
+    adapter = build_nina_adapter()
+    session = build_session_service()
+    actions = ControlledActionService(adapter, action_runtime, session)
+    return PrepareForImagingService(
+        adapter,
+        actions,
+        session,
+        ImagingReadinessService(adapter),
+        FitsAnalysisService(),
+        workflow_runtime,
+    )
 
 
 def build_action_service() -> ControlledActionService:
@@ -175,6 +193,12 @@ async def get_session_timeline(
 async def analyze_fits_image(request: FitsAnalysisInput) -> FitsAnalysisReport:
     """Analyze one local FITS image read-only; no image bytes leave the machine."""
     return await asyncio.to_thread(build_fits_analysis_service().analyze, request)
+
+
+@mcp.tool()
+async def prepare_for_imaging(request: PrepareForImagingInput) -> PrepareForImagingReport:
+    """Propose or resume the bounded supervised imaging-preparation workflow."""
+    return await build_prepare_for_imaging_service().prepare(request)
 
 
 if __name__ == "__main__":

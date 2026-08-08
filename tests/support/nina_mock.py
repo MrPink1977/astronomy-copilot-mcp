@@ -30,6 +30,8 @@ class NinaMockServer:
 
     def __init__(self) -> None:
         self._responses: dict[str, MockResponse] = {}
+        self._response_sequences: dict[str, list[MockResponse]] = {}
+        self._side_effects: dict[str, tuple[str, MockResponse]] = {}
         self._runner: web.AppRunner | None = None
         self._site: web.TCPSite | None = None
         self.host = "127.0.0.1"
@@ -72,6 +74,24 @@ class NinaMockServer:
     def set_scenario(self, scenario: dict[str, Any]) -> None:
         for endpoint, payload in scenario.items():
             self.set_json(endpoint, payload)
+
+    def set_json_sequence(self, endpoint: str, payloads: list[Any]) -> None:
+        if not payloads:
+            raise ValueError("payloads must not be empty")
+        self._response_sequences[endpoint.strip("/")] = [
+            MockResponse(payload=payload) for payload in payloads
+        ]
+
+    def set_json_side_effect(
+        self,
+        trigger_endpoint: str,
+        target_endpoint: str,
+        payload: Any,
+    ) -> None:
+        self._side_effects[trigger_endpoint.strip("/")] = (
+            target_endpoint.strip("/"),
+            MockResponse(payload=payload),
+        )
 
     def set_websocket_events(self, events: list[dict[str, Any]]) -> None:
         """Configure sanitized events sent in order on each websocket connection."""
@@ -116,11 +136,20 @@ class NinaMockServer:
                 query=dict(request.query),
             )
         )
-        response = self._responses.get(endpoint)
+        sequence = self._response_sequences.get(endpoint)
+        if sequence:
+            response = sequence.pop(0) if len(sequence) > 1 else sequence[0]
+        else:
+            response = self._responses.get(endpoint)
         if response is None:
             return web.json_response(
                 {"error": f"No sanitized mock configured for {endpoint}"}, status=404
             )
+
+        side_effect = self._side_effects.get(endpoint)
+        if side_effect is not None:
+            target, replacement = side_effect
+            self._responses[target] = replacement
 
         if response.delay_seconds:
             await asyncio.sleep(response.delay_seconds)

@@ -30,6 +30,8 @@ The Phase 5 reconciled session state, timeline, and deterministic command guards
 [`docs/PHASE5_SESSION_STATE.md`](docs/PHASE5_SESSION_STATE.md).
 The Phase 6 local, read-only FITS metadata and image-quality contract is documented in
 [`docs/PHASE6_FITS_ANALYSIS.md`](docs/PHASE6_FITS_ANALYSIS.md).
+The Phase 7 resumable, approval-paused supervised workflow is documented in
+[`docs/PHASE7_SUPERVISED_WORKFLOW.md`](docs/PHASE7_SUPERVISED_WORKFLOW.md).
 
 - [What this is (and isn't)](#what-this-is-and-isnt)
 - [Prerequisites](#prerequisites)

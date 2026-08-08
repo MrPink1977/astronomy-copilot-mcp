@@ -35,12 +35,16 @@ from astronomy_copilot.models.session import (
     SessionTimelineEvent,
 )
 from astronomy_copilot.models.status import ObservatoryStatus, OverallState
+from astronomy_copilot.models.workflow import (
+    PrepareForImagingReport,
+    WorkflowStatus,
+)
 from astronomy_copilot.server import action_runtime, mcp
 
 pytestmark = [pytest.mark.contract, pytest.mark.asyncio]
 
 
-async def test_curated_server_exposes_exactly_the_phase5_reviewed_tools():
+async def test_curated_server_exposes_exactly_the_phase7_reviewed_tools():
     async with Client(mcp) as client:
         tools = await client.list_tools()
 
@@ -60,6 +64,7 @@ async def test_curated_server_exposes_exactly_the_phase5_reviewed_tools():
         "get_action_audit",
         "get_session_timeline",
         "analyze_fits_image",
+        "prepare_for_imaging",
     ]
 
 
@@ -432,3 +437,55 @@ async def test_phase6_fits_analysis_has_a_stable_local_evidence_contract(monkeyp
         "evidence",
         "limitations",
     }
+
+
+async def test_phase7_workflow_has_a_stable_supervised_contract(monkeypatch):
+    class FakeWorkflowService:
+        async def prepare(self, request):
+            return PrepareForImagingReport(
+                workflow_id="controlled-workflow",
+                status=WorkflowStatus.PROPOSED,
+                summary="Controlled plan proposed without writes.",
+                dry_run=True,
+            )
+
+    monkeypatch.setattr(
+        "astronomy_copilot.server.build_prepare_for_imaging_service",
+        lambda: FakeWorkflowService(),
+    )
+
+    async with Client(mcp) as client:
+        result = await client.call_tool(
+            "prepare_for_imaging",
+            {
+                "request": {
+                    "target_name": "Controlled target",
+                    "ra_hours": 10.0,
+                    "dec_degrees": 20.0,
+                }
+            },
+        )
+
+    assert result.structured_content is not None
+    assert set(result.structured_content) == {
+        "workflow_id",
+        "status",
+        "summary",
+        "dry_run",
+        "proposed_plan",
+        "steps",
+        "action_results",
+        "image_analyses",
+        "final_image_analysis",
+        "required_approval",
+        "plate_solve_attempts",
+        "changed_variables",
+        "final_readiness",
+        "session_timeline",
+        "timeline",
+        "warnings",
+        "observed_at",
+        "source",
+    }
+    assert result.structured_content["status"] == "PROPOSED"
+    assert result.structured_content["source"] == "astronomy_copilot_supervised_workflow"

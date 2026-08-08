@@ -1,4 +1,4 @@
-name: Phase 6 gate
+name: Phase 7 gate
 
 on:
   push:
@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  fits-analysis-validation:
+  supervised-workflow-validation:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 

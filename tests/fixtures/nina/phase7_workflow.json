@@ -1,0 +1,26 @@
+{
+  "equipment/camera/capture": {
+    "Response": {"Image": null},
+    "StatusCode": 200,
+    "Success": true,
+    "Type": "API"
+  },
+  "prepared-image/solve": {
+    "Response": {"Success": true, "RA": 150.0, "Dec": 20.0, "PixelScale": 1.2},
+    "StatusCode": 200,
+    "Success": true,
+    "Type": "API"
+  },
+  "equipment/mount/slew": {
+    "Response": "Slew and center finished",
+    "StatusCode": 200,
+    "Success": true,
+    "Type": "API"
+  },
+  "equipment/guider/start": {
+    "Response": "Guiding started",
+    "StatusCode": 200,
+    "Success": true,
+    "Type": "API"
+  }
+}

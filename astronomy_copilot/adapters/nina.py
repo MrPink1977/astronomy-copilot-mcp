@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timezone
 from typing import Any
 
 import aiohttp
@@ -100,6 +101,7 @@ class NinaReadOnlyAdapter:
                     )
                 )
                 snapshot["session"] = dict(session_results)
+            snapshot["observed_at"] = datetime.now(timezone.utc).isoformat()
         return snapshot
 
     async def get_snapshot(self) -> dict[str, Any]:
