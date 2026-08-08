@@ -1,0 +1,27 @@
+{
+  "version": "2.2.15.2",
+  "equipment": {
+    "camera": {
+      "Connected": true,
+      "CameraState": "Idle",
+      "IsExposing": false
+    },
+    "mount": {
+      "Connected": true,
+      "AtPark": false,
+      "Slewing": false,
+      "Tracking": true
+    },
+    "guider": {
+      "Connected": true,
+      "State": "Guiding"
+    }
+  },
+  "diagnostics": {
+    "plate_solving": {
+      "Running": false,
+      "Progress": 100,
+      "CurrentOperation": "Idle"
+    }
+  }
+}

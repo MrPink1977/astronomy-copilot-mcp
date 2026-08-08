@@ -22,6 +22,8 @@ Talk to your observatory: *"connect the camera, cool to -10°C, slew to M31, tak
 
 Development and hardware-free validation commands are documented in
 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
+The curated Phase 3 readiness contracts and reviewed diagnostic rules are documented in
+[`docs/PHASE3_DIAGNOSTICS.md`](docs/PHASE3_DIAGNOSTICS.md).
 
 - [What this is (and isn't)](#what-this-is-and-isnt)
 - [Prerequisites](#prerequisites)

@@ -1,4 +1,4 @@
-name: Phase 2 gate
+name: Phase 3 gate
 
 on:
   push:
@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  hardware-free-validation:
+  read-only-diagnostics-validation:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 

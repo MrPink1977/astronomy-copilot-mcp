@@ -29,6 +29,9 @@ class NinaReadOnlyAdapter:
         "weather": "equipment/weather/info",
         "switch": "equipment/switch/info",
     }
+    DIAGNOSTIC_ENDPOINTS = {
+        "plate_solving": "plate-solve/status",
+    }
 
     def __init__(self, host: str = "127.0.0.1", port: int = 1888, timeout_seconds: float = 5.0):
         self.base_url = f"http://{host}:{port}/v2/api"
@@ -49,7 +52,7 @@ class NinaReadOnlyAdapter:
             raise NinaResponseError(f"{endpoint} returned an unsuccessful response")
         return payload.get("Response")
 
-    async def get_snapshot(self) -> dict[str, Any]:
+    async def _get_snapshot(self, *, include_diagnostics: bool) -> dict[str, Any]:
         timeout = aiohttp.ClientTimeout(total=self.timeout_seconds)
         async with aiohttp.ClientSession(timeout=timeout) as session:
             version = await self._get(session, "version")
@@ -62,10 +65,26 @@ class NinaReadOnlyAdapter:
                 except NinaResponseError as exc:
                     return name, exc
 
-            results = await asyncio.gather(
+            equipment_results = await asyncio.gather(
                 *(
                     read_component(name, endpoint)
                     for name, endpoint in self.EQUIPMENT_ENDPOINTS.items()
                 )
             )
-        return {"version": version, "equipment": dict(results)}
+            snapshot = {"version": version, "equipment": dict(equipment_results)}
+            if include_diagnostics:
+                diagnostic_results = await asyncio.gather(
+                    *(
+                        read_component(name, endpoint)
+                        for name, endpoint in self.DIAGNOSTIC_ENDPOINTS.items()
+                    )
+                )
+                snapshot["diagnostics"] = dict(diagnostic_results)
+        return snapshot
+
+    async def get_snapshot(self) -> dict[str, Any]:
+        return await self._get_snapshot(include_diagnostics=False)
+
+    async def get_diagnostic_snapshot(self) -> dict[str, Any]:
+        """Return status plus reviewed read-only telemetry used by Phase 3 rules."""
+        return await self._get_snapshot(include_diagnostics=True)

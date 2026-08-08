@@ -1,0 +1,12 @@
+{
+  "Response": {
+    "Running": false,
+    "Progress": 100,
+    "CurrentOperation": "Failed",
+    "Error": "ASTAP plate solve failed",
+    "ErrorTime": "2026-08-08T02:00:00Z"
+  },
+  "StatusCode": 200,
+  "Success": true,
+  "Type": "API"
+}

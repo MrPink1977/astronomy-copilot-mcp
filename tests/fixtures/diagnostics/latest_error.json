@@ -1,0 +1,31 @@
+{
+  "version": "2.2.15.2",
+  "equipment": {
+    "camera": {
+      "Connected": true,
+      "CameraState": "Idle",
+      "IsExposing": false,
+      "LastError": "Download failed at C:\\Users\\observer\\private\\frame.fit token=secret-value",
+      "LastErrorTime": "2026-08-08T03:00:00Z"
+    },
+    "mount": {
+      "Connected": true,
+      "AtPark": false,
+      "Slewing": false,
+      "Tracking": true,
+      "LastError": "Tracking command rejected",
+      "LastErrorTime": "2026-08-08T02:00:00Z"
+    },
+    "guider": {
+      "Connected": true,
+      "State": "Guiding"
+    }
+  },
+  "diagnostics": {
+    "plate_solving": {
+      "Running": false,
+      "Progress": 100,
+      "CurrentOperation": "Idle"
+    }
+  }
+}

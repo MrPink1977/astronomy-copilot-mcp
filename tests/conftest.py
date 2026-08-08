@@ -17,6 +17,7 @@ from tests.support.nina_mock import NinaMockServer
 
 
 NINA_FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "nina"
+DIAGNOSTIC_FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "diagnostics"
 
 
 @pytest.fixture
@@ -25,6 +26,16 @@ def nina_fixture():
 
     def load(filename: str) -> Any:
         return json.loads((NINA_FIXTURE_ROOT / filename).read_text(encoding="utf-8"))
+
+    return load
+
+
+@pytest.fixture
+def diagnostic_fixture():
+    """Load one reviewed Phase 3 diagnostic scenario by filename."""
+
+    def load(filename: str) -> Any:
+        return json.loads((DIAGNOSTIC_FIXTURE_ROOT / filename).read_text(encoding="utf-8"))
 
     return load
 

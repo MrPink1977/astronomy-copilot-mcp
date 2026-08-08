@@ -1,0 +1,10 @@
+{
+  "Response": {
+    "Running": false,
+    "Progress": 100,
+    "CurrentOperation": "Idle"
+  },
+  "StatusCode": 200,
+  "Success": true,
+  "Type": "API"
+}

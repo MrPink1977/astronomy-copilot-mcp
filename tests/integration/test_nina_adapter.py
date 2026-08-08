@@ -7,6 +7,7 @@ from astronomy_copilot.adapters.nina import (
     NinaResponseError,
     NinaUnavailableError,
 )
+from astronomy_copilot.services.readiness import ImagingReadinessService
 from astronomy_copilot.services.status import ObservatoryStatusService
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
@@ -111,3 +112,68 @@ async def test_status_service_integrates_with_partial_http_snapshot(nina_mock_se
         ).state
         == "UNAVAILABLE"
     )
+
+
+async def test_adapter_reads_reviewed_diagnostic_endpoint(nina_mock_server, nina_fixture):
+    scenario = nina_fixture("healthy_status.json")
+    nina_mock_server.set_scenario(scenario)
+    nina_mock_server.set_json("plate-solve/status", nina_fixture("plate_solve_idle.json"))
+
+    result = await adapter_for(nina_mock_server).get_diagnostic_snapshot()
+
+    assert result["diagnostics"]["plate_solving"] == {
+        "Running": False,
+        "Progress": 100,
+        "CurrentOperation": "Idle",
+    }
+    assert "plate-solve/status" in nina_mock_server.requests
+
+
+async def test_readiness_service_is_ready_against_mock_http(nina_mock_server, nina_fixture):
+    scenario = nina_fixture("healthy_status.json")
+    scenario["equipment/mount/info"]["Response"].update(
+        {"AtPark": False, "Slewing": False, "Tracking": True}
+    )
+    scenario["equipment/guider/info"]["Response"]["State"] = "Guiding"
+    nina_mock_server.set_scenario(scenario)
+    nina_mock_server.set_json("plate-solve/status", nina_fixture("plate_solve_idle.json"))
+
+    result = await ImagingReadinessService(adapter_for(nina_mock_server)).get_readiness()
+
+    assert result.state == "READY"
+    assert result.ready is True
+    assert result.blocking_issues == []
+
+
+async def test_missing_plate_solve_telemetry_is_unknown_not_a_fault(nina_mock_server, nina_fixture):
+    scenario = nina_fixture("healthy_status.json")
+    scenario["equipment/mount/info"]["Response"].update(
+        {"AtPark": False, "Slewing": False, "Tracking": True}
+    )
+    scenario["equipment/guider/info"]["Response"]["State"] = "Guiding"
+    nina_mock_server.set_scenario(scenario)
+
+    result = await ImagingReadinessService(adapter_for(nina_mock_server)).get_readiness()
+
+    assert result.state == "UNKNOWN"
+    assert result.blocking_issues == []
+    assert [finding.code for finding in result.unknowns] == ["plate_solving.telemetry_unknown"]
+
+
+async def test_plate_solve_failure_blocks_mock_http_readiness(nina_mock_server, nina_fixture):
+    scenario = nina_fixture("healthy_status.json")
+    scenario["equipment/mount/info"]["Response"].update(
+        {"AtPark": False, "Slewing": False, "Tracking": True}
+    )
+    scenario["equipment/guider/info"]["Response"]["State"] = "Guiding"
+    nina_mock_server.set_scenario(scenario)
+    nina_mock_server.set_json("plate-solve/status", nina_fixture("plate_solve_failed.json"))
+
+    service = ImagingReadinessService(adapter_for(nina_mock_server))
+    readiness = await service.get_readiness()
+    latest_error = await service.get_latest_error()
+
+    assert readiness.state == "BLOCKED"
+    assert readiness.blocking_issues[0].code == "plate_solving.reported_error"
+    assert latest_error.error is not None
+    assert latest_error.error.component == "plate_solving"
