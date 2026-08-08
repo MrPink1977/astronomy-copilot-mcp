@@ -24,6 +24,8 @@ Development and hardware-free validation commands are documented in
 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 The curated Phase 3 readiness contracts and reviewed diagnostic rules are documented in
 [`docs/PHASE3_DIAGNOSTICS.md`](docs/PHASE3_DIAGNOSTICS.md).
+The Phase 4 dry-run, approval-plan, audit, and controlled-action contracts are documented in
+[`docs/PHASE4_CONTROLLED_ACTIONS.md`](docs/PHASE4_CONTROLLED_ACTIONS.md).
 
 - [What this is (and isn't)](#what-this-is-and-isnt)
 - [Prerequisites](#prerequisites)

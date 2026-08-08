@@ -1,4 +1,4 @@
-name: Phase 3 gate
+name: Phase 4 gate
 
 on:
   push:
@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  read-only-diagnostics-validation:
+  controlled-action-validation:
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -46,4 +46,4 @@ jobs:
         run: uv run pytest -m integration
 
       - name: Complete hardware-free suite
-        run: uv run pytest
+        run: uv run pytest -m "not hardware"

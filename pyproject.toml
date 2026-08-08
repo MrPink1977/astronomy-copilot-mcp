@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "astronomy-copilot-mcp"
 version = "0.1.0"
-description = "A curated read-only Astronomy Copilot MCP alongside the upstream NINA compatibility server"
+description = "A safety-controlled Astronomy Copilot MCP alongside the upstream NINA compatibility server"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { file = "LICENSE" }
@@ -44,6 +44,7 @@ markers = [
     "unit: deterministic tests with no HTTP server",
     "contract: MCP surface and schema compatibility tests",
     "integration: tests against the local mock NINA HTTP server",
+    "hardware: explicitly opted-in tests that may access observatory hardware",
 ]
 
 [tool.ruff]
@@ -56,6 +57,8 @@ include = [
     "tests/integration/**/*.py",
     "tests/support/**/*.py",
     "tests/test_curated_status.py",
+    "tests/test_phase4_actions.py",
+    "tests/hardware_integration/**/*.py",
 ]
 extend-exclude = [
     "alerter.py",

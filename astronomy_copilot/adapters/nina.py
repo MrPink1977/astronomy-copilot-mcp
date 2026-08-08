@@ -14,6 +14,10 @@ class NinaResponseError(RuntimeError):
     """NINA returned an unsuccessful or malformed response."""
 
 
+class NinaActionTimeoutError(NinaUnavailableError):
+    """A controlled NINA action exceeded its server-enforced deadline."""
+
+
 class NinaReadOnlyAdapter:
     """Small NINA adapter containing only reviewed, read-only endpoints."""
 
@@ -88,3 +92,69 @@ class NinaReadOnlyAdapter:
     async def get_diagnostic_snapshot(self) -> dict[str, Any]:
         """Return status plus reviewed read-only telemetry used by Phase 3 rules."""
         return await self._get_snapshot(include_diagnostics=True)
+
+
+class NinaActionAdapter(NinaReadOnlyAdapter):
+    """Reviewed Phase 4 action endpoints kept separate from status reads."""
+
+    CANCEL_ENDPOINTS = {
+        "capture_test_frame": "equipment/camera/abort-exposure",
+        "center_target": "equipment/mount/slew/stop",
+        "start_guiding": "equipment/guider/stop",
+        "start_existing_sequence": "sequence/stop",
+    }
+
+    async def execute(
+        self,
+        endpoint: str,
+        *,
+        params: dict[str, str | int | float | bool] | None = None,
+        timeout_seconds: float,
+    ) -> Any:
+        timeout = aiohttp.ClientTimeout(total=timeout_seconds)
+        encoded_params = {
+            key: str(value).lower() if isinstance(value, bool) else value
+            for key, value in (params or {}).items()
+        }
+        try:
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(
+                    f"{self.base_url}/{endpoint}", params=encoded_params
+                ) as response:
+                    if response.status != 200:
+                        raise NinaResponseError(f"{endpoint} returned HTTP {response.status}")
+                    payload = await response.json()
+        except asyncio.TimeoutError as exc:
+            raise NinaActionTimeoutError(f"{endpoint} exceeded its action timeout") from exc
+        except (aiohttp.ContentTypeError, ValueError) as exc:
+            raise NinaResponseError(f"{endpoint} returned invalid JSON") from exc
+        except aiohttp.ClientError as exc:
+            raise NinaUnavailableError("NINA Advanced API is unavailable") from exc
+
+        if not isinstance(payload, dict) or payload.get("Success") is not True:
+            raise NinaResponseError(f"{endpoint} returned an unsuccessful response")
+        return payload.get("Response")
+
+    async def get_equipment_info(
+        self,
+        component: str,
+        *,
+        timeout_seconds: float,
+    ) -> dict[str, Any]:
+        response = await self.execute(
+            f"equipment/{component}/info",
+            timeout_seconds=timeout_seconds,
+        )
+        if not isinstance(response, dict):
+            raise NinaResponseError(f"equipment/{component}/info returned malformed telemetry")
+        return response
+
+    async def cancel(self, action: str) -> bool:
+        endpoint = self.CANCEL_ENDPOINTS.get(action)
+        if endpoint is None:
+            return False
+        try:
+            await self.execute(endpoint, timeout_seconds=5.0)
+        except (NinaUnavailableError, NinaResponseError):
+            return False
+        return True

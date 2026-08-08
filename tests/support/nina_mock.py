@@ -18,6 +18,13 @@ class MockResponse:
     delay_seconds: float = 0.0
 
 
+@dataclass(slots=True)
+class MockRequest:
+    method: str
+    endpoint: str
+    query: dict[str, str]
+
+
 class NinaMockServer:
     """Small loopback-only HTTP server implementing configured NINA API routes."""
 
@@ -28,6 +35,7 @@ class NinaMockServer:
         self.host = "127.0.0.1"
         self.port: int | None = None
         self.requests: list[str] = []
+        self.request_details: list[MockRequest] = []
 
     def set_json(
         self,
@@ -85,6 +93,13 @@ class NinaMockServer:
     async def _handle(self, request: web.Request) -> web.Response:
         endpoint = request.match_info["endpoint"]
         self.requests.append(endpoint)
+        self.request_details.append(
+            MockRequest(
+                method=request.method,
+                endpoint=endpoint,
+                query=dict(request.query),
+            )
+        )
         response = self._responses.get(endpoint)
         if response is None:
             return web.json_response(
