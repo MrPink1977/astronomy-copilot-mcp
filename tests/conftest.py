@@ -5,10 +5,39 @@ schema (extracted live from %LOCALAPPDATA%\\NINA\\SchedulerPlugin\\schedulerdb.s
 Tests never touch the user's real DB.
 """
 
+import json
 import sqlite3
-import tempfile
 from pathlib import Path
+from typing import Any
+
 import pytest
+import pytest_asyncio
+
+from tests.support.nina_mock import NinaMockServer
+
+
+NINA_FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "nina"
+
+
+@pytest.fixture
+def nina_fixture():
+    """Load one sanitized NINA JSON fixture by filename."""
+
+    def load(filename: str) -> Any:
+        return json.loads((NINA_FIXTURE_ROOT / filename).read_text(encoding="utf-8"))
+
+    return load
+
+
+@pytest_asyncio.fixture
+async def nina_mock_server():
+    """Run a deterministic loopback NINA API mock for one test."""
+    server = NinaMockServer()
+    await server.start()
+    try:
+        yield server
+    finally:
+        await server.close()
 
 
 TS_SCHEMA = """

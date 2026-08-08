@@ -1,0 +1,105 @@
+{
+  "version": {
+    "Response": "2.2.15.2",
+    "StatusCode": 200,
+    "Success": true,
+    "Type": "API"
+  },
+  "equipment/camera/info": {
+    "Response": {
+      "Connected": true,
+      "State": "Idle",
+      "CoolerOn": false,
+      "Temperature": 20.0
+    },
+    "StatusCode": 200,
+    "Success": true,
+    "Type": "API"
+  },
+  "equipment/mount/info": {
+    "Response": {
+      "Connected": true,
+      "AtPark": true,
+      "Slewing": false,
+      "Tracking": false
+    },
+    "StatusCode": 200,
+    "Success": true,
+    "Type": "API"
+  },
+  "equipment/focuser/info": {
+    "Response": {
+      "Connected": true,
+      "IsMoving": false,
+      "Position": 12000
+    },
+    "StatusCode": 200,
+    "Success": true,
+    "Type": "API"
+  },
+  "equipment/filterwheel/info": {
+    "Response": {
+      "Connected": true,
+      "SelectedFilter": "L"
+    },
+    "StatusCode": 200,
+    "Success": true,
+    "Type": "API"
+  },
+  "equipment/guider/info": {
+    "Response": {
+      "Connected": true,
+      "State": "Stopped"
+    },
+    "StatusCode": 200,
+    "Success": true,
+    "Type": "API"
+  },
+  "equipment/dome/info": {
+    "Response": {
+      "Connected": true,
+      "ShutterStatus": "Closed"
+    },
+    "StatusCode": 200,
+    "Success": true,
+    "Type": "API"
+  },
+  "equipment/flatdevice/info": {
+    "Response": {
+      "Brightness": 0,
+      "Connected": true,
+      "LightOn": false
+    },
+    "StatusCode": 200,
+    "Success": true,
+    "Type": "API"
+  },
+  "equipment/safetymonitor/info": {
+    "Response": {
+      "Connected": true,
+      "IsSafe": true
+    },
+    "StatusCode": 200,
+    "Success": true,
+    "Type": "API"
+  },
+  "equipment/weather/info": {
+    "Response": {
+      "Connected": true,
+      "Humidity": 35.0,
+      "Temperature": 12.0
+    },
+    "StatusCode": 200,
+    "Success": true,
+    "Type": "API"
+  },
+  "equipment/switch/info": {
+    "Response": {
+      "Channels": [],
+      "Connected": true
+    },
+    "StatusCode": 200,
+    "Success": true,
+    "Type": "API"
+  }
+}

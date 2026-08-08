@@ -1,0 +1,16 @@
+{
+  "files": {
+    "alerter.py": "3ec4c8f74232e0a8c8d5c3dd6042759e139cb1e1697a518469eb3cbc074d3770",
+    "events.py": "37f108d3623a08f343aefb8f27130f04a26099c47dbee1aec85a7db3831f331e",
+    "nina_advanced_mcp.py": "50da9b9892918f00feabef910e7bc5610fd104ad70924c51518cbbeb87ce913c",
+    "ts_db.py": "4ba2baae99fd20ef27c4b40eacdfceb8a4af060f01adfad37b6d3cf309805b55"
+  },
+  "raw_mcp": {
+    "decorated_definitions": 181,
+    "duplicate_names": [
+      "nina_get_image_history",
+      "nina_get_version"
+    ],
+    "unique_tool_names": 179
+  }
+}

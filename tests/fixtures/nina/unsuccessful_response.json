@@ -1,0 +1,7 @@
+{
+  "Response": null,
+  "Error": "Sanitized mock API failure",
+  "StatusCode": 500,
+  "Success": false,
+  "Type": "API"
+}
