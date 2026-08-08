@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 from typing import Annotated
 
@@ -25,10 +26,12 @@ from astronomy_copilot.models.diagnostics import (
     LatestErrorReport,
     NextActionRecommendation,
 )
+from astronomy_copilot.models.image_analysis import FitsAnalysisInput, FitsAnalysisReport
 from astronomy_copilot.models.session import SessionTimeline
 from astronomy_copilot.models.status import ObservatoryStatus
 from astronomy_copilot.policy.approvals import ActionRuntime
 from astronomy_copilot.services.actions import ControlledActionService
+from astronomy_copilot.services.image_analysis import FitsAnalysisService
 from astronomy_copilot.services.readiness import ImagingReadinessService
 from astronomy_copilot.services.session import SessionRuntime, SessionService
 from astronomy_copilot.services.status import ObservatoryStatusService
@@ -53,6 +56,10 @@ def build_status_service() -> ObservatoryStatusService:
 
 def build_readiness_service() -> ImagingReadinessService:
     return ImagingReadinessService(build_nina_adapter())
+
+
+def build_fits_analysis_service() -> FitsAnalysisService:
+    return FitsAnalysisService()
 
 
 def build_session_service() -> SessionService:
@@ -162,6 +169,12 @@ async def get_session_timeline(
 ) -> SessionTimeline:
     """Return bounded reconciled session-state events after the supplied cursor."""
     return await build_session_service().get_timeline(cursor, limit)
+
+
+@mcp.tool()
+async def analyze_fits_image(request: FitsAnalysisInput) -> FitsAnalysisReport:
+    """Analyze one local FITS image read-only; no image bytes leave the machine."""
+    return await asyncio.to_thread(build_fits_analysis_service().analyze, request)
 
 
 if __name__ == "__main__":

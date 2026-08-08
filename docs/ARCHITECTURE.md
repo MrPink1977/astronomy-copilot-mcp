@@ -104,6 +104,19 @@ non-authoritative `STARTING` rather than carrying a prior `SAFE` claim forward.
 gap flag. The same current state and normalized facts feed pure command-guard rules before an
 approved Phase 4 action can consume its approval or send a write.
 
+## Local FITS analysis
+
+Phase 6 adds a separate `astronomy_copilot.image_analysis` package. The curated
+`analyze_fits_image` handler delegates to a synchronous read-only service on a worker thread. The
+loader accepts only bounded, uncompressed local FITS files, selects an image HDU, copies reviewed
+header metadata, and normalizes pixels without importing or changing the raw compatibility server.
+
+Pixel statistics and quality estimators are deterministic NumPy operations. Returned measurements
+and indicators carry availability, methods, units, thresholds, and limitations. Missing headers,
+an absent saturation reference, or insufficient point-source candidates remain explicitly
+`UNAVAILABLE`; they are not converted into zero values or negative findings. The service returns
+only normalized scalar evidence and never sends image bytes to NINA or any external service.
+
 ## Test architecture
 
 Current tests exercise:

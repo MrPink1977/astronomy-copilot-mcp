@@ -20,6 +20,14 @@ from astronomy_copilot.models.diagnostics import (
     NextActionRecommendation,
     Severity,
 )
+from astronomy_copilot.models.image_analysis import (
+    AnalysisState,
+    EvidenceState,
+    FitsAnalysisReport,
+    ImageMeasurement,
+    ImageQualityIndicator,
+    IndicatorState,
+)
 from astronomy_copilot.models.session import (
     SessionEventSource,
     SessionState,
@@ -51,6 +59,7 @@ async def test_curated_server_exposes_exactly_the_phase5_reviewed_tools():
         "park_observatory",
         "get_action_audit",
         "get_session_timeline",
+        "analyze_fits_image",
     ]
 
 
@@ -348,4 +357,78 @@ async def test_phase5_timeline_has_a_stable_bounded_contract(monkeypatch):
         "summary",
         "occurred_at",
         "evidence",
+    }
+
+
+async def test_phase6_fits_analysis_has_a_stable_local_evidence_contract(monkeypatch):
+    class FakeFitsAnalysisService:
+        def analyze(self, request):
+            return FitsAnalysisReport(
+                state=AnalysisState.COMPLETE,
+                summary="Controlled local FITS analysis completed.",
+                file_name="controlled.fits",
+                hdu_index=0,
+                metadata={
+                    "image_width": ImageMeasurement(
+                        state=EvidenceState.AVAILABLE,
+                        value=64,
+                        unit="pixels",
+                        method="FITS NAXIS1 image dimension",
+                    )
+                },
+                indicators=[
+                    ImageQualityIndicator(
+                        code="controlled_indicator",
+                        state=IndicatorState.NOT_DETECTED,
+                        summary="Controlled threshold was not reached.",
+                        method="Controlled fixture method",
+                        threshold=">= 1 controlled unit",
+                        evidence=["image_width"],
+                        limitations=["Controlled fixture only."],
+                    )
+                ],
+            )
+
+    monkeypatch.setattr(
+        "astronomy_copilot.server.build_fits_analysis_service",
+        lambda: FakeFitsAnalysisService(),
+    )
+
+    async with Client(mcp) as client:
+        result = await client.call_tool(
+            "analyze_fits_image",
+            {"request": {"file_path": "controlled.fits"}},
+        )
+
+    assert result.structured_content is not None
+    assert set(result.structured_content) == {
+        "state",
+        "summary",
+        "file_name",
+        "hdu_index",
+        "metadata",
+        "measurements",
+        "indicators",
+        "warnings",
+        "limitations",
+        "observed_at",
+        "source",
+    }
+    assert set(result.structured_content["metadata"]["image_width"]) == {
+        "state",
+        "value",
+        "unit",
+        "method",
+        "threshold",
+        "limitations",
+    }
+    assert result.structured_content["source"] == "local_fits_read_only"
+    assert set(result.structured_content["indicators"][0]) == {
+        "code",
+        "state",
+        "summary",
+        "method",
+        "threshold",
+        "evidence",
+        "limitations",
     }

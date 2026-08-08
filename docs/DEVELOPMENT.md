@@ -42,7 +42,7 @@ observatory hardware, external network access, secrets, or a local `.env` file.
 
 ## Running the MCP servers
 
-Run the curated server (read tools plus dry-run-by-default controlled actions):
+Run the curated server (read tools, local FITS analysis, and dry-run-by-default controlled actions):
 
 ```powershell
 uv run python -m astronomy_copilot.server

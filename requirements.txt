@@ -1,8 +1,10 @@
 # Runtime dependencies. The reproducible development environment is defined in
 # pyproject.toml and uv.lock; this file remains for compatibility with pip users.
 aiohttp>=3.12,<4
+astropy>=8.0.1,<9
 fastapi>=0.116,<1
 fastmcp>=3.4.5,<4
+numpy>=2.4.2,<3
 pydantic>=2.11,<3
 python-dateutil>=2.9,<3
 python-dotenv>=1.1,<2

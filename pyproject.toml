@@ -11,8 +11,10 @@ requires-python = ">=3.11"
 license = { file = "LICENSE" }
 dependencies = [
     "aiohttp>=3.12,<4",
+    "astropy>=8.0.1,<9",
     "fastapi>=0.116,<1",
     "fastmcp>=3.4.5,<4",
+    "numpy>=2.4.2,<3",
     "pydantic>=2.11,<3",
     "python-dateutil>=2.9,<3",
     "python-dotenv>=1.1,<2",
@@ -59,6 +61,7 @@ include = [
     "tests/test_curated_status.py",
     "tests/test_phase4_actions.py",
     "tests/test_phase5_session.py",
+    "tests/test_phase6_image_analysis.py",
     "tests/hardware_integration/**/*.py",
 ]
 extend-exclude = [
