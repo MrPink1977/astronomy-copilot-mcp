@@ -7,6 +7,7 @@ from fastmcp import FastMCP
 from pydantic import Field
 
 from astronomy_copilot.adapters.nina import NinaActionAdapter
+from astronomy_copilot.adapters.nina_events import NinaEventAdapter
 from astronomy_copilot.models.actions import (
     ActionResult,
     AuditReport,
@@ -24,14 +25,18 @@ from astronomy_copilot.models.diagnostics import (
     LatestErrorReport,
     NextActionRecommendation,
 )
+from astronomy_copilot.models.session import SessionTimeline
 from astronomy_copilot.models.status import ObservatoryStatus
 from astronomy_copilot.policy.approvals import ActionRuntime
 from astronomy_copilot.services.actions import ControlledActionService
 from astronomy_copilot.services.readiness import ImagingReadinessService
+from astronomy_copilot.services.session import SessionRuntime, SessionService
 from astronomy_copilot.services.status import ObservatoryStatusService
 
 mcp = FastMCP("Astronomy Copilot")
 action_runtime = ActionRuntime()
+session_runtime = SessionRuntime()
+_session_service: SessionService | None = None
 
 
 def build_nina_adapter() -> NinaActionAdapter:
@@ -50,8 +55,22 @@ def build_readiness_service() -> ImagingReadinessService:
     return ImagingReadinessService(build_nina_adapter())
 
 
+def build_session_service() -> SessionService:
+    global _session_service
+    if _session_service is None:
+        host = os.getenv("NINA_HOST", "127.0.0.1")
+        port = int(os.getenv("NINA_PORT", "1888"))
+        timeout = float(os.getenv("NINA_TIMEOUT_SECONDS", "5"))
+        _session_service = SessionService(
+            build_nina_adapter(),
+            session_runtime,
+            NinaEventAdapter(host=host, port=port, timeout_seconds=timeout),
+        )
+    return _session_service
+
+
 def build_action_service() -> ControlledActionService:
-    return ControlledActionService(build_nina_adapter(), action_runtime)
+    return ControlledActionService(build_nina_adapter(), action_runtime, build_session_service())
 
 
 @mcp.tool()
@@ -134,6 +153,15 @@ async def get_action_audit(
 ) -> AuditReport:
     """Return the bounded in-memory audit trail for attempted controlled actions."""
     return build_action_service().get_audit(limit)
+
+
+@mcp.tool()
+async def get_session_timeline(
+    cursor: Annotated[int, Field(ge=0)] = 0,
+    limit: Annotated[int, Field(ge=1, le=100)] = 50,
+) -> SessionTimeline:
+    """Return bounded reconciled session-state events after the supplied cursor."""
+    return await build_session_service().get_timeline(cursor, limit)
 
 
 if __name__ == "__main__":

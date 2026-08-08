@@ -92,6 +92,18 @@ Important constraints for later state modeling:
 
 The Copilot state layer must use events for responsiveness and live status snapshots for authority/reconciliation.
 
+## Curated session state layer
+
+Phase 5 adds `astronomy_copilot.services.session` beside, not inside, the raw event subscriber.
+It consumes NINA websocket events for responsive updates and reconciles those hints against a
+reviewed HTTP equipment, plate-solver, and sequence snapshot at startup and after reconnects.
+Snapshots are authoritative; contradictory telemetry becomes `ERROR`, and a restart begins at
+non-authoritative `STARTING` rather than carrying a prior `SAFE` claim forward.
+
+`get_session_timeline` exposes bounded structured history with monotonic cursors and an explicit
+gap flag. The same current state and normalized facts feed pure command-guard rules before an
+approved Phase 4 action can consume its approval or send a write.
+
 ## Test architecture
 
 Current tests exercise:

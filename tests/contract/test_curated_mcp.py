@@ -20,13 +20,19 @@ from astronomy_copilot.models.diagnostics import (
     NextActionRecommendation,
     Severity,
 )
+from astronomy_copilot.models.session import (
+    SessionEventSource,
+    SessionState,
+    SessionTimeline,
+    SessionTimelineEvent,
+)
 from astronomy_copilot.models.status import ObservatoryStatus, OverallState
 from astronomy_copilot.server import action_runtime, mcp
 
 pytestmark = [pytest.mark.contract, pytest.mark.asyncio]
 
 
-async def test_curated_server_exposes_exactly_the_phase4_reviewed_tools():
+async def test_curated_server_exposes_exactly_the_phase5_reviewed_tools():
     async with Client(mcp) as client:
         tools = await client.list_tools()
 
@@ -44,6 +50,7 @@ async def test_curated_server_exposes_exactly_the_phase4_reviewed_tools():
         "stop_sequence_safely",
         "park_observatory",
         "get_action_audit",
+        "get_session_timeline",
     ]
 
 
@@ -286,3 +293,59 @@ async def test_real_phase4_mcp_dry_runs_never_touch_the_adapter(monkeypatch):
         assert center.structured_content["approval_plan"] is not None
     finally:
         action_runtime.clear()
+
+
+async def test_phase5_timeline_has_a_stable_bounded_contract(monkeypatch):
+    class FakeSessionService:
+        async def get_timeline(self, cursor=0, limit=50):
+            return SessionTimeline(
+                state=SessionState.CONNECTED,
+                authoritative=True,
+                summary="Authoritative snapshot reports session state CONNECTED.",
+                events=[
+                    SessionTimelineEvent(
+                        cursor=3,
+                        event_type="SNAPSHOT-RECONCILED",
+                        source=SessionEventSource.SNAPSHOT,
+                        previous_state=SessionState.STARTING,
+                        state=SessionState.CONNECTED,
+                        summary="Snapshot reconciled.",
+                    )
+                ],
+                count=1,
+                next_cursor=3,
+            )
+
+    monkeypatch.setattr(
+        "astronomy_copilot.server.build_session_service",
+        lambda: FakeSessionService(),
+    )
+
+    async with Client(mcp) as client:
+        result = await client.call_tool(
+            "get_session_timeline",
+            {"cursor": 0, "limit": 10},
+        )
+
+    assert result.structured_content is not None
+    assert set(result.structured_content) == {
+        "state",
+        "authoritative",
+        "summary",
+        "events",
+        "count",
+        "next_cursor",
+        "history_gap",
+        "observed_at",
+        "source",
+    }
+    assert set(result.structured_content["events"][0]) == {
+        "cursor",
+        "event_type",
+        "source",
+        "previous_state",
+        "state",
+        "summary",
+        "occurred_at",
+        "evidence",
+    }

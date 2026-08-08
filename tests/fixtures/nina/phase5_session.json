@@ -1,0 +1,22 @@
+{
+  "plate-solve/status": {
+    "Response": {
+      "Status": "Idle"
+    },
+    "StatusCode": 200,
+    "Success": true,
+    "Type": "API"
+  },
+  "sequence/state": {
+    "Response": [
+      {
+        "Name": "Sanitized existing sequence",
+        "Status": "CREATED",
+        "Items": []
+      }
+    ],
+    "StatusCode": 200,
+    "Success": true,
+    "Type": "API"
+  }
+}

@@ -26,6 +26,8 @@ The curated Phase 3 readiness contracts and reviewed diagnostic rules are docume
 [`docs/PHASE3_DIAGNOSTICS.md`](docs/PHASE3_DIAGNOSTICS.md).
 The Phase 4 dry-run, approval-plan, audit, and controlled-action contracts are documented in
 [`docs/PHASE4_CONTROLLED_ACTIONS.md`](docs/PHASE4_CONTROLLED_ACTIONS.md).
+The Phase 5 reconciled session state, timeline, and deterministic command guards are documented in
+[`docs/PHASE5_SESSION_STATE.md`](docs/PHASE5_SESSION_STATE.md).
 
 - [What this is (and isn't)](#what-this-is-and-isnt)
 - [Prerequisites](#prerequisites)

@@ -37,7 +37,7 @@ uv run pytest -m integration
 uv run pytest -m "not hardware"
 ```
 
-All default tests use in-memory data or a loopback mock HTTP server. They do not require NINA,
+All default tests use in-memory data or a loopback mock HTTP/websocket server. They do not require NINA,
 observatory hardware, external network access, secrets, or a local `.env` file.
 
 ## Running the MCP servers

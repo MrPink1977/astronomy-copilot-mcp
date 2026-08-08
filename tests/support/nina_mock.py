@@ -36,6 +36,8 @@ class NinaMockServer:
         self.port: int | None = None
         self.requests: list[str] = []
         self.request_details: list[MockRequest] = []
+        self.websocket_events: list[dict[str, Any]] = []
+        self.websocket_connections = 0
 
     def set_json(
         self,
@@ -71,8 +73,13 @@ class NinaMockServer:
         for endpoint, payload in scenario.items():
             self.set_json(endpoint, payload)
 
+    def set_websocket_events(self, events: list[dict[str, Any]]) -> None:
+        """Configure sanitized events sent in order on each websocket connection."""
+        self.websocket_events = list(events)
+
     async def start(self) -> None:
         app = web.Application()
+        app.router.add_get("/v2/api/event-websocket", self._handle_websocket)
         app.router.add_get("/v2/api/{endpoint:.*}", self._handle)
         self._runner = web.AppRunner(app)
         await self._runner.setup()
@@ -89,6 +96,15 @@ class NinaMockServer:
             await self._runner.cleanup()
         self._runner = None
         self._site = None
+
+    async def _handle_websocket(self, request: web.Request) -> web.WebSocketResponse:
+        websocket = web.WebSocketResponse()
+        await websocket.prepare(request)
+        self.websocket_connections += 1
+        for event in self.websocket_events:
+            await websocket.send_json(event)
+        await websocket.close()
+        return websocket
 
     async def _handle(self, request: web.Request) -> web.Response:
         endpoint = request.match_info["endpoint"]

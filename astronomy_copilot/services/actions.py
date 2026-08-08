@@ -30,6 +30,7 @@ from astronomy_copilot.policy.approvals import (
     ApprovalRejectedError,
     action_parameters_hash,
 )
+from astronomy_copilot.policy.state_guards import StateGuardDecision
 
 
 class ActionAdapter(Protocol):
@@ -49,6 +50,10 @@ class ActionAdapter(Protocol):
     ) -> dict[str, Any]: ...
 
     async def cancel(self, action: str) -> bool: ...
+
+
+class SessionGuardService(Protocol):
+    async def guard(self, action: str) -> StateGuardDecision: ...
 
 
 OperationResult = tuple[
@@ -86,9 +91,15 @@ def safe_solve_details(response: Any) -> dict[str, str | int | float | bool | No
 
 
 class ControlledActionService:
-    def __init__(self, adapter: ActionAdapter, runtime: ActionRuntime):
+    def __init__(
+        self,
+        adapter: ActionAdapter,
+        runtime: ActionRuntime,
+        session_service: SessionGuardService | None = None,
+    ):
         self.adapter = adapter
         self.runtime = runtime
+        self.session_service = session_service
 
     def get_audit(self, limit: int = 20) -> AuditReport:
         return self.runtime.audit.report(limit)
@@ -170,6 +181,20 @@ class ControlledActionService:
                 summary="Execution rejected: approved=true is required for every write action.",
                 approval_plan_id=request.approval_plan_id,
             )
+
+        if self.session_service is not None:
+            decision = await self.session_service.guard(action)
+            if not decision.allowed:
+                return self._result(
+                    action=action,
+                    level=level,
+                    status=ActionStatus.REJECTED,
+                    dry_run=False,
+                    parameters_hash=parameters_hash,
+                    summary=(f"Execution rejected by the Phase 5 state guard: {decision.reason}."),
+                    approval_plan_id=request.approval_plan_id,
+                    details={"session_state": decision.state.value},
+                )
 
         if level >= ActionLevel.PHYSICAL_MOTION:
             try:

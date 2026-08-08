@@ -58,6 +58,7 @@ include = [
     "tests/support/**/*.py",
     "tests/test_curated_status.py",
     "tests/test_phase4_actions.py",
+    "tests/test_phase5_session.py",
     "tests/hardware_integration/**/*.py",
 ]
 extend-exclude = [

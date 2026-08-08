@@ -36,6 +36,9 @@ class NinaReadOnlyAdapter:
     DIAGNOSTIC_ENDPOINTS = {
         "plate_solving": "plate-solve/status",
     }
+    SESSION_ENDPOINTS = {
+        "sequence": "sequence/state",
+    }
 
     def __init__(self, host: str = "127.0.0.1", port: int = 1888, timeout_seconds: float = 5.0):
         self.base_url = f"http://{host}:{port}/v2/api"
@@ -56,7 +59,12 @@ class NinaReadOnlyAdapter:
             raise NinaResponseError(f"{endpoint} returned an unsuccessful response")
         return payload.get("Response")
 
-    async def _get_snapshot(self, *, include_diagnostics: bool) -> dict[str, Any]:
+    async def _get_snapshot(
+        self,
+        *,
+        include_diagnostics: bool,
+        include_session: bool = False,
+    ) -> dict[str, Any]:
         timeout = aiohttp.ClientTimeout(total=self.timeout_seconds)
         async with aiohttp.ClientSession(timeout=timeout) as session:
             version = await self._get(session, "version")
@@ -84,6 +92,14 @@ class NinaReadOnlyAdapter:
                     )
                 )
                 snapshot["diagnostics"] = dict(diagnostic_results)
+            if include_session:
+                session_results = await asyncio.gather(
+                    *(
+                        read_component(name, endpoint)
+                        for name, endpoint in self.SESSION_ENDPOINTS.items()
+                    )
+                )
+                snapshot["session"] = dict(session_results)
         return snapshot
 
     async def get_snapshot(self) -> dict[str, Any]:
@@ -92,6 +108,10 @@ class NinaReadOnlyAdapter:
     async def get_diagnostic_snapshot(self) -> dict[str, Any]:
         """Return status plus reviewed read-only telemetry used by Phase 3 rules."""
         return await self._get_snapshot(include_diagnostics=True)
+
+    async def get_session_snapshot(self) -> dict[str, Any]:
+        """Return the full reviewed snapshot used to reconcile Phase 5 state."""
+        return await self._get_snapshot(include_diagnostics=True, include_session=True)
 
 
 class NinaActionAdapter(NinaReadOnlyAdapter):
