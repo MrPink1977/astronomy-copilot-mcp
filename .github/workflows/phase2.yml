@@ -1,0 +1,49 @@
+name: Phase 2 gate
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  hardware-free-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          version: "0.9.17"
+
+      - name: Install Python
+        run: uv python install 3.11
+
+      - name: Verify dependency lock
+        run: uv lock --check
+
+      - name: Install locked dependencies
+        run: uv sync --locked --all-groups --python 3.11
+
+      - name: Lint
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+
+      - name: Unit tests
+        run: uv run pytest -m unit
+
+      - name: MCP contract tests
+        run: uv run pytest -m contract
+
+      - name: Mock NINA integration tests
+        run: uv run pytest -m integration
+
+      - name: Complete hardware-free suite
+        run: uv run pytest
