@@ -20,6 +20,9 @@ Talk to your observatory: *"connect the camera, cool to -10°C, slew to M31, tak
 
 ## Table of contents
 
+Development and hardware-free validation commands are documented in
+[`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
+
 - [What this is (and isn't)](#what-this-is-and-isnt)
 - [Prerequisites](#prerequisites)
 - [Installing the prerequisites (for first-timers)](#-installing-the-prerequisites-for-first-timers)

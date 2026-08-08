@@ -11,6 +11,9 @@ import pytest
 from events import EventStore, run_subscriber, tool_poll_events_since
 
 
+pytestmark = pytest.mark.unit
+
+
 class TestEventStore:
     def test_new_store_is_empty(self):
         s = EventStore()

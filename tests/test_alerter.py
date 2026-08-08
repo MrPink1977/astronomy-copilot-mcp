@@ -14,6 +14,9 @@ from alerter import (
 )
 
 
+pytestmark = pytest.mark.unit
+
+
 class TestSeverity:
     def test_known_levels(self):
         """The three planned severity tiers must exist with stable string values."""

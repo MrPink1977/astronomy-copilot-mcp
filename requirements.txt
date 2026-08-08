@@ -1,25 +1,13 @@
-# Core dependencies
-fastmcp>=0.1.0
-fastapi>=0.95.0
-uvicorn>=0.22.0
-pydantic>=2.0.0
-aiohttp>=3.8.0
-
-
-# Environment and configuration
-python-dotenv>=1.0.0
-
-# Utilities
-python-dateutil>=2.8.2
-pytz>=2023.3
-
-# Logging and debugging
-structlog>=23.1.0
-
-# Type hints
-typing-extensions>=4.5.0
-
-# Tests (dev — Phase 1 autopilot extensions)
-pytest>=8.0.0
-pytest-asyncio>=0.23.0
-
+# Runtime dependencies. The reproducible development environment is defined in
+# pyproject.toml and uv.lock; this file remains for compatibility with pip users.
+aiohttp>=3.12,<4
+fastapi>=0.116,<1
+fastmcp>=3.4.5,<4
+pydantic>=2.11,<3
+python-dateutil>=2.9,<3
+python-dotenv>=1.1,<2
+pytz>=2025.2
+requests>=2.32,<3
+structlog>=25.4,<27
+typing-extensions>=4.14,<5
+uvicorn>=0.35,<1

@@ -13,6 +13,9 @@ from ts_db import (
     tool_next_target,
 )
 
+
+pytestmark = pytest.mark.unit
+
 # Mirror constants from conftest.py — pytest's conftest is not import-friendly
 PROFILE_A = "11111111-1111-1111-1111-111111111111"
 PROFILE_B = "22222222-2222-2222-2222-222222222222"
