@@ -296,9 +296,7 @@ async def test_exhausted_solve_recovery_stops_with_known_state(nina_mock_server,
     assert "equipment/mount/slew" not in nina_mock_server.requests
 
 
-async def test_nested_solve_failure_never_creates_centering_plan(
-    nina_mock_server, nina_fixture
-):
+async def test_nested_solve_failure_never_creates_centering_plan(nina_mock_server, nina_fixture):
     service = build_workflow(nina_mock_server, workflow_scenario(nina_fixture))
     nina_mock_server.set_json(
         "prepared-image/solve",
