@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from typing import Any, Protocol
 
@@ -38,6 +39,7 @@ from astronomy_copilot.services.session import facts_from_snapshot, state_from_f
 
 OPERATOR_SAFETY_ATTESTATION_MAX_AGE_SECONDS = 300.0
 OPERATOR_SAFETY_ATTESTATION_FUTURE_TOLERANCE_SECONDS = 5.0
+CLOUDY_WEATHER_RETRY_INTERVAL_SECONDS = 300.0
 
 
 class WorkflowAdapter(Protocol):
@@ -127,6 +129,9 @@ class PrepareForImagingService:
         image_analysis: WorkflowImageAnalysisService,
         runtime: WorkflowRuntime,
         guiding_poll_interval_seconds: float = 1.0,
+        cloudy_retry_interval_seconds: float = CLOUDY_WEATHER_RETRY_INTERVAL_SECONDS,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.adapter = adapter
         self.actions = actions
@@ -135,6 +140,9 @@ class PrepareForImagingService:
         self.image_analysis = image_analysis
         self.runtime = runtime
         self.guiding_poll_interval_seconds = guiding_poll_interval_seconds
+        self.cloudy_retry_interval_seconds = cloudy_retry_interval_seconds
+        self.sleep = sleep
+        self.clock = clock or (lambda: datetime.now(timezone.utc))
 
     def _report(
         self,
@@ -196,7 +204,7 @@ class PrepareForImagingService:
         observed_at = _parse_observed_at(snapshot.get("observed_at"))
         if observed_at is None:
             return False, "Safety telemetry has no valid observation timestamp."
-        age = (datetime.now(timezone.utc) - observed_at).total_seconds()
+        age = (self.clock() - observed_at).total_seconds()
         if age < -5.0 or age > request.max_telemetry_age_seconds:
             return False, f"Safety telemetry is stale or future-dated (age {age:.1f} seconds)."
 
@@ -244,14 +252,14 @@ class PrepareForImagingService:
         attested_at = _parse_observed_at(request.operator_safety_attested_at)
         if attested_at is None:
             return False, "The operator safety attestation has no valid timestamp."
-        attestation_age = (datetime.now(timezone.utc) - attested_at).total_seconds()
+        attestation_age = (self.clock() - attested_at).total_seconds()
         if (
             attestation_age < -OPERATOR_SAFETY_ATTESTATION_FUTURE_TOLERANCE_SECONDS
             or attestation_age > OPERATOR_SAFETY_ATTESTATION_MAX_AGE_SECONDS
         ):
             return False, (
                 "The operator safety attestation is expired or future-dated "
-                f"(age {attestation_age:.1f} seconds)."
+                f"(age {attestation_age:.1f} seconds); stop and provide a fresh attestation."
             )
         return True, (
             "No safety monitor is configured; a fresh, time-bounded operator safety "
@@ -386,7 +394,7 @@ class PrepareForImagingService:
             readiness = scoped_readiness(
                 await self.readiness.get_readiness(),
                 require_guiding=request.require_guiding,
-                allow_not_guiding=request.require_guiding,
+                allow_not_guiding=(request.require_guiding and not request.cloudy_weather_retry),
             )
             if not readiness.ready:
                 record.final_readiness = readiness
@@ -479,6 +487,18 @@ class PrepareForImagingService:
                 break
             if attempt >= request.max_plate_solve_attempts:
                 break
+            if request.cloudy_weather_retry:
+                self.runtime.event(
+                    record,
+                    "plate_solve",
+                    WorkflowStepState.RUNNING,
+                    "Plate solve failed; waiting five minutes before the bounded retry.",
+                )
+                await self.sleep(self.cloudy_retry_interval_seconds)
+                failure = await self._preflight(record, request, check_readiness=True)
+                if failure is not None:
+                    return failure
+                continue
             saturation_detected = (
                 quality is not None and "saturation" in self._blocking_image_indicators(quality)
             )

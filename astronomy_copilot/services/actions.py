@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import math
 from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
 
@@ -85,9 +86,58 @@ def safe_solve_details(response: Any) -> dict[str, str | int | float | bool | No
         value = response.get(key)
         if key == "Error" and isinstance(value, str):
             value = sanitize_error_message(value)
+        if isinstance(value, float) and not math.isfinite(value):
+            value = None
         if isinstance(value, (str, int, float, bool)) or value is None:
             details[key.casefold()] = value
     return details or {"result": "completed"}
+
+
+def _solve_value(response: dict[str, Any], name: str) -> Any:
+    for key, value in response.items():
+        if str(key).casefold() == name.casefold():
+            return value
+    return None
+
+
+def validated_solve_details(
+    response: Any,
+) -> tuple[bool, str, dict[str, str | int | float | bool | None]]:
+    """Validate NINA's nested solve result before treating the action as successful."""
+    details = safe_solve_details(response)
+    if not isinstance(response, dict):
+        return False, "The plate solver returned no structured solution.", details
+
+    success = _solve_value(response, "Success")
+    if success is not True:
+        return False, "The plate solver explicitly reported that no solution was found.", details
+
+    ra = _solve_value(response, "RA")
+    dec = _solve_value(response, "Dec")
+    if (
+        isinstance(ra, bool)
+        or not isinstance(ra, (int, float))
+        or isinstance(dec, bool)
+        or not isinstance(dec, (int, float))
+    ):
+        return False, "The plate solver did not return numeric solution coordinates.", details
+    if not math.isfinite(float(ra)) or not math.isfinite(float(dec)):
+        return False, "The plate solver returned non-finite solution coordinates.", details
+    if not 0.0 <= float(ra) < 360.0 or not -90.0 <= float(dec) <= 90.0:
+        return False, "The plate solver returned out-of-range solution coordinates.", details
+
+    for name in ("Rotation", "PixelScale"):
+        value = _solve_value(response, name)
+        if value is None:
+            continue
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return False, f"The plate solver returned a malformed {name} value.", details
+        if not math.isfinite(float(value)):
+            return False, f"The plate solver returned a non-finite {name} value.", details
+        if name == "PixelScale" and float(value) <= 0.0:
+            return False, "The plate solver returned a non-positive PixelScale value.", details
+
+    return True, "The current prepared frame produced a valid plate solution.", details
 
 
 class ControlledActionService:
@@ -373,10 +423,11 @@ class ControlledActionService:
                 "prepared-image/solve",
                 timeout_seconds=request.timeout_seconds,
             )
+            valid, summary, details = validated_solve_details(response)
             return (
-                ActionStatus.EXECUTED,
-                "The current prepared frame was submitted to the configured plate solver.",
-                safe_solve_details(response),
+                ActionStatus.EXECUTED if valid else ActionStatus.FAILED,
+                summary,
+                details,
             )
 
         return await self._control(

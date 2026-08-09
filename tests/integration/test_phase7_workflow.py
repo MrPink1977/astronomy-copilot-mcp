@@ -31,7 +31,14 @@ def workflow_scenario(nina_fixture):
     return scenario
 
 
-def build_workflow(nina_mock_server, scenario):
+def build_workflow(
+    nina_mock_server,
+    scenario,
+    *,
+    cloudy_retry_interval_seconds=300.0,
+    sleep=None,
+    clock=None,
+):
     nina_mock_server.set_scenario(scenario)
     assert nina_mock_server.port is not None
     adapter = NinaActionAdapter(
@@ -39,8 +46,23 @@ def build_workflow(nina_mock_server, scenario):
         port=nina_mock_server.port,
         timeout_seconds=1.0,
     )
+    if clock is not None:
+        get_session_snapshot = adapter.get_session_snapshot
+
+        async def clocked_session_snapshot():
+            snapshot = await get_session_snapshot()
+            snapshot["observed_at"] = clock().isoformat()
+            return snapshot
+
+        adapter.get_session_snapshot = clocked_session_snapshot
     session = SessionService(adapter, SessionRuntime())
     actions = ControlledActionService(adapter, ActionRuntime(), session)
+    service_kwargs = {
+        "cloudy_retry_interval_seconds": cloudy_retry_interval_seconds,
+        "clock": clock,
+    }
+    if sleep is not None:
+        service_kwargs["sleep"] = sleep
     service = PrepareForImagingService(
         adapter,
         actions,
@@ -48,6 +70,7 @@ def build_workflow(nina_mock_server, scenario):
         ImagingReadinessService(adapter),
         FitsAnalysisService(),
         WorkflowRuntime(),
+        **service_kwargs,
     )
     return service
 
@@ -270,6 +293,196 @@ async def test_exhausted_solve_recovery_stops_with_known_state(nina_mock_server,
     assert failed.final_readiness is not None
     assert failed.session_timeline is not None
     assert failed.timeline[-1].state == "FAILED"
+    assert "equipment/mount/slew" not in nina_mock_server.requests
+
+
+async def test_nested_solve_failure_never_creates_centering_plan(
+    nina_mock_server, nina_fixture
+):
+    service = build_workflow(nina_mock_server, workflow_scenario(nina_fixture))
+    nina_mock_server.set_json(
+        "prepared-image/solve",
+        {
+            "Success": True,
+            "Response": {
+                "Success": False,
+                "RA": None,
+                "Dec": None,
+                "Rotation": None,
+                "PixelScale": None,
+            },
+        },
+    )
+    proposed = await service.prepare(workflow_request(max_plate_solve_attempts=1))
+
+    failed = await service.prepare(
+        workflow_request(
+            max_plate_solve_attempts=1,
+            dry_run=False,
+            approved=True,
+            workflow_id=proposed.workflow_id,
+        )
+    )
+
+    assert failed.status == WorkflowStatus.FAILED
+    assert failed.required_approval is None
+    assert failed.action_results[-1].status == ActionStatus.FAILED
+    assert failed.action_results[-1].details["success"] is False
+    assert all(result.action != "center_target" for result in failed.action_results)
+    assert "equipment/mount/slew" not in nina_mock_server.requests
+
+
+async def test_cloudy_retry_waits_rechecks_preflight_and_keeps_three_second_exposure(
+    nina_mock_server, nina_fixture
+):
+    scenario = workflow_scenario(nina_fixture)
+    scenario["equipment/guider/info"]["Response"]["State"] = "Guiding"
+    waits = []
+
+    async def record_wait(seconds):
+        waits.append(seconds)
+
+    service = build_workflow(
+        nina_mock_server,
+        scenario,
+        cloudy_retry_interval_seconds=300.0,
+        sleep=record_wait,
+    )
+    nina_mock_server.set_json_sequence(
+        "prepared-image/solve",
+        [
+            {"Success": True, "Response": {"Success": False, "RA": None, "Dec": None}},
+            scenario["prepared-image/solve"],
+        ],
+    )
+    proposed = await service.prepare(
+        workflow_request(cloudy_weather_retry=True, max_plate_solve_attempts=3)
+    )
+
+    paused = await service.prepare(
+        workflow_request(
+            cloudy_weather_retry=True,
+            max_plate_solve_attempts=3,
+            dry_run=False,
+            approved=True,
+            workflow_id=proposed.workflow_id,
+        )
+    )
+
+    captures = [
+        detail.query["duration"]
+        for detail in nina_mock_server.request_details
+        if detail.endpoint == "equipment/camera/capture"
+    ]
+    first_solve = nina_mock_server.requests.index("prepared-image/solve")
+    second_capture = nina_mock_server.requests.index("equipment/camera/capture", first_solve)
+    assert paused.status == WorkflowStatus.AWAITING_APPROVAL
+    assert paused.plate_solve_attempts == 2
+    assert waits == [300.0]
+    assert captures == ["3.0", "3.0"]
+    assert "equipment/mount/info" in nina_mock_server.requests[first_solve + 1 : second_capture]
+    assert len([r for r in paused.action_results if r.action == "center_target"]) == 1
+    assert "equipment/mount/slew" not in nina_mock_server.requests
+
+
+async def test_cloudy_retry_exhaustion_is_bounded_without_centering_plan(
+    nina_mock_server, nina_fixture
+):
+    scenario = workflow_scenario(nina_fixture)
+    scenario["equipment/guider/info"]["Response"]["State"] = "Guiding"
+    waits = []
+
+    async def record_wait(seconds):
+        waits.append(seconds)
+
+    service = build_workflow(
+        nina_mock_server,
+        scenario,
+        cloudy_retry_interval_seconds=300.0,
+        sleep=record_wait,
+    )
+    nina_mock_server.set_json(
+        "prepared-image/solve",
+        {"Success": True, "Response": {"Success": False, "RA": None, "Dec": None}},
+    )
+    proposed = await service.prepare(
+        workflow_request(cloudy_weather_retry=True, max_plate_solve_attempts=3)
+    )
+
+    failed = await service.prepare(
+        workflow_request(
+            cloudy_weather_retry=True,
+            max_plate_solve_attempts=3,
+            dry_run=False,
+            approved=True,
+            workflow_id=proposed.workflow_id,
+        )
+    )
+
+    captures = [
+        detail.query["duration"]
+        for detail in nina_mock_server.request_details
+        if detail.endpoint == "equipment/camera/capture"
+    ]
+    assert failed.status == WorkflowStatus.FAILED
+    assert failed.plate_solve_attempts == 3
+    assert waits == [300.0, 300.0]
+    assert captures == ["3.0", "3.0", "3.0"]
+    assert failed.required_approval is None
+    assert all(result.action != "center_target" for result in failed.action_results)
+
+
+async def test_cloudy_retry_stops_for_fresh_attestation_after_expiry(
+    nina_mock_server, nina_fixture
+):
+    scenario = workflow_scenario(nina_fixture)
+    scenario["equipment/guider/info"]["Response"]["State"] = "Guiding"
+    scenario["equipment/safetymonitor/info"]["Response"] = {
+        "Connected": False,
+        "IsSafe": False,
+    }
+    scenario["profile/show"]["Response"]["SafetyMonitorSettings"]["Id"] = "No_Device"
+    now = [datetime.now(timezone.utc)]
+
+    async def advance_clock(seconds):
+        now[0] += timedelta(seconds=seconds + 1)
+
+    service = build_workflow(
+        nina_mock_server,
+        scenario,
+        cloudy_retry_interval_seconds=300.0,
+        sleep=advance_clock,
+        clock=lambda: now[0],
+    )
+    nina_mock_server.set_json(
+        "prepared-image/solve",
+        {"Success": True, "Response": {"Success": False, "RA": None, "Dec": None}},
+    )
+    proposed = await service.prepare(
+        workflow_request(cloudy_weather_retry=True, max_plate_solve_attempts=3)
+    )
+
+    failed = await service.prepare(
+        workflow_request(
+            cloudy_weather_retry=True,
+            max_plate_solve_attempts=3,
+            dry_run=False,
+            approved=True,
+            workflow_id=proposed.workflow_id,
+            operator_safety_attestation="OPERATOR_CONFIRMS_SAFE",
+            operator_safety_attested_at=now[0],
+        )
+    )
+
+    captures = [
+        detail
+        for detail in nina_mock_server.request_details
+        if detail.endpoint == "equipment/camera/capture"
+    ]
+    assert failed.status == WorkflowStatus.FAILED
+    assert "fresh attestation" in failed.summary
+    assert len(captures) == 1
+    assert failed.required_approval is None
     assert "equipment/mount/slew" not in nina_mock_server.requests
 
 

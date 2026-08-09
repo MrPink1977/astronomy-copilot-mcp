@@ -259,7 +259,11 @@ Gate:
 
 - The workflow succeeds end-to-end against the mock NINA scenario.
 - It is then validated on live hardware in daylight/safe conditions before a night test.
-- Plate-solve recovery changes one variable at a time and has a hard retry limit.
+- Plate-solve recovery has a hard retry limit. Normal recovery changes one exposure variable at a
+  time; supervised cloudy-weather recovery instead keeps the three-second exposure fixed, waits
+  five minutes, and repeats the full preflight before each of at most three attempts.
+- A successful HTTP/API envelope is insufficient: the nested solve must explicitly succeed and
+  contain valid finite solution coordinates before a centering plan can exist.
 - A failed step leaves the rig in a known, reported state and never silently continues.
 
 ### Phase 8 - Codex operating skill

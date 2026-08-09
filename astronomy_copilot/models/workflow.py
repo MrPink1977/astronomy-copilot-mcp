@@ -39,6 +39,13 @@ class PrepareForImagingInput(BaseModel):
     image_file_path: str | None = Field(default=None, min_length=1, max_length=4096)
     require_guiding: bool = True
     max_plate_solve_attempts: int = Field(default=2, ge=1, le=3)
+    cloudy_weather_retry: bool = Field(
+        default=False,
+        description=(
+            "Keep the solve exposure fixed and wait five minutes between bounded attempts, "
+            "with a full preflight before every attempt."
+        ),
+    )
     guiding_settle_timeout_seconds: float = Field(default=30.0, ge=1.0, le=120.0)
     max_telemetry_age_seconds: float = Field(default=10.0, ge=1.0, le=60.0)
     timeout_seconds: float = Field(default=120.0, ge=1.0, le=600.0)

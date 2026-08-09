@@ -20,7 +20,11 @@ from astronomy_copilot.policy.approvals import (
     ApprovalRejectedError,
     AuditLog,
 )
-from astronomy_copilot.services.actions import ControlledActionService, safe_solve_details
+from astronomy_copilot.services.actions import (
+    ControlledActionService,
+    safe_solve_details,
+    validated_solve_details,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -237,6 +241,38 @@ def test_plate_solve_error_details_are_sanitized():
 
     assert details["error"] == "Failed at [redacted_path]"
     assert "abc" not in details["error"]
+
+
+@pytest.mark.parametrize(
+    ("response", "message"),
+    [
+        ({"Success": False, "RA": None, "Dec": None}, "no solution"),
+        ({"Success": True, "Dec": 20.0}, "numeric solution coordinates"),
+        ({"Success": True, "RA": "150", "Dec": 20.0}, "numeric solution coordinates"),
+        ({"Success": True, "RA": float("nan"), "Dec": 20.0}, "non-finite"),
+        ({"Success": True, "RA": 150.0, "Dec": float("inf")}, "non-finite"),
+        ({"Success": True, "RA": 360.0, "Dec": 20.0}, "out-of-range"),
+        (
+            {"Success": True, "RA": 150.0, "Dec": 20.0, "PixelScale": float("nan")},
+            "non-finite PixelScale",
+        ),
+    ],
+)
+def test_invalid_nested_plate_solve_results_are_rejected(response, message):
+    valid, summary, _ = validated_solve_details(response)
+
+    assert valid is False
+    assert message in summary
+
+
+def test_valid_nested_plate_solve_result_requires_finite_coordinates():
+    valid, summary, details = validated_solve_details(
+        {"Success": True, "RA": 150.0, "Dec": 20.0, "PixelScale": 1.2}
+    )
+
+    assert valid is True
+    assert "valid plate solution" in summary
+    assert details["ra"] == 150.0
 
 
 @pytest.mark.asyncio

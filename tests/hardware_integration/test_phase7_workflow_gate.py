@@ -31,8 +31,9 @@ async def test_phase7_live_workflow_reaches_but_does_not_cross_motion_boundary()
         target_name=os.environ["PHASE7_TARGET_NAME"],
         ra_hours=float(os.environ["PHASE7_RA_HOURS"]),
         dec_degrees=float(os.environ["PHASE7_DEC_DEGREES"]),
-        test_exposure_seconds=float(os.getenv("PHASE7_TEST_EXPOSURE_SECONDS", "3")),
-        max_plate_solve_attempts=1,
+        test_exposure_seconds=3.0,
+        max_plate_solve_attempts=3,
+        cloudy_weather_retry=True,
         operator_safety_attestation=attestation,
         operator_safety_attested_at=(
             datetime.fromisoformat(attested_at.replace("Z", "+00:00"))

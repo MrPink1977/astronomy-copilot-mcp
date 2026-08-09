@@ -94,8 +94,10 @@ $env:PHASE7_DEC_DEGREES="20.0"
 uv run pytest tests/hardware_integration/test_phase7_workflow_gate.py -m hardware
 ```
 
-This harness may connect configured equipment, capture bounded frames, and plate solve. It must
-stop at the Level 2 centering approval boundary; the flags are not a centering plan ID.
+This harness may connect configured equipment, capture at most three three-second frames, and plate
+solve. After a failed solve it waits five minutes and reruns the complete preflight before another
+attempt. It must stop at the Level 2 centering approval boundary; the flags are not a centering plan
+ID. A failed or malformed nested solve result cannot create that plan.
 
 If and only if the active NINA profile has no configured Safety Monitor, add a fresh, explicit
 operator attestation immediately before running the harness:
@@ -107,3 +109,5 @@ $env:PHASE7_OPERATOR_SAFETY_ATTESTED_AT=(Get-Date).ToUniversalTime().ToString("o
 
 The server accepts this attestation for at most five minutes. It is rejected when a monitor is
 configured but disconnected, and it can never override a connected monitor reporting unsafe.
+The retry delay does not extend the attestation. On a rig with no configured monitor, expiry during
+the delay stops before the next capture and requires a fresh attestation and newly authorized run.
