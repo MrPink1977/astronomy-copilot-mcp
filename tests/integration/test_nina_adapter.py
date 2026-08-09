@@ -170,9 +170,7 @@ async def test_missing_active_profile_is_unknown_not_a_fault(nina_mock_server, n
     assert [finding.code for finding in result.unknowns] == ["plate_solving.telemetry_unknown"]
 
 
-async def test_unconfigured_plate_solver_blocks_mock_http_readiness(
-    nina_mock_server, nina_fixture
-):
+async def test_unconfigured_plate_solver_blocks_mock_http_readiness(nina_mock_server, nina_fixture):
     scenario = nina_fixture("healthy_status.json")
     scenario["equipment/mount/info"]["Response"].update(
         {"AtPark": False, "Slewing": False, "Tracking": True}

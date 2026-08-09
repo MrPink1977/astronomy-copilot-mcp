@@ -300,9 +300,7 @@ async def test_unsafe_monitor_stops_before_any_write(nina_mock_server, nina_fixt
     assert write_endpoints.isdisjoint(nina_mock_server.requests)
 
 
-async def test_absent_monitor_requires_current_operator_attestation(
-    nina_mock_server, nina_fixture
-):
+async def test_absent_monitor_requires_current_operator_attestation(nina_mock_server, nina_fixture):
     scenario = workflow_scenario(nina_fixture)
     scenario["equipment/safetymonitor/info"]["Response"] = {
         "Connected": False,
