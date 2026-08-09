@@ -36,6 +36,9 @@ from astronomy_copilot.policy.workflow_plans import (
 from astronomy_copilot.services.readiness import readiness_from_findings
 from astronomy_copilot.services.session import facts_from_snapshot, state_from_facts
 
+OPERATOR_SAFETY_ATTESTATION_MAX_AGE_SECONDS = 300.0
+OPERATOR_SAFETY_ATTESTATION_FUTURE_TOLERANCE_SECONDS = 5.0
+
 
 class WorkflowAdapter(Protocol):
     async def get_session_snapshot(self) -> dict[str, Any]: ...
@@ -213,9 +216,47 @@ class PrepareForImagingService:
         safety_monitor = equipment.get("safety_monitor") if isinstance(equipment, dict) else None
         connected = _casefold_value(safety_monitor, "Connected")
         safe = _casefold_value(safety_monitor, "IsSafe")
-        if connected is not True or safe is not True:
-            return False, "A connected safety monitor must positively report IsSafe=true."
-        return True, f"Fresh authoritative telemetry permits continuation from state {state}."
+        if connected is True:
+            if safe is not True:
+                return False, (
+                    "The connected safety monitor does not positively report IsSafe=true; "
+                    "operator attestation cannot override it."
+                )
+            return True, f"Fresh authoritative telemetry permits continuation from state {state}."
+
+        configuration = snapshot.get("configuration")
+        safety_configuration = (
+            configuration.get("safety_monitor") if isinstance(configuration, dict) else None
+        )
+        configured = _casefold_value(safety_configuration, "Configured")
+        if configured is not False:
+            return False, (
+                "A configured safety monitor is disconnected or its configuration is unknown; "
+                "operator attestation is not permitted."
+            )
+        if connected is not False:
+            return False, "Safety-monitor connection telemetry is missing or malformed."
+        if request.operator_safety_attestation != "OPERATOR_CONFIRMS_SAFE":
+            return False, (
+                "No safety monitor is configured; a current explicit operator safety "
+                "attestation is required."
+            )
+        attested_at = _parse_observed_at(request.operator_safety_attested_at)
+        if attested_at is None:
+            return False, "The operator safety attestation has no valid timestamp."
+        attestation_age = (datetime.now(timezone.utc) - attested_at).total_seconds()
+        if (
+            attestation_age < -OPERATOR_SAFETY_ATTESTATION_FUTURE_TOLERANCE_SECONDS
+            or attestation_age > OPERATOR_SAFETY_ATTESTATION_MAX_AGE_SECONDS
+        ):
+            return False, (
+                "The operator safety attestation is expired or future-dated "
+                f"(age {attestation_age:.1f} seconds)."
+            )
+        return True, (
+            "No safety monitor is configured; a fresh, time-bounded operator safety "
+            f"attestation permits continuation from state {state}."
+        )
 
     async def _known_state(self, record: WorkflowRecord) -> None:
         await self.session.reconcile()

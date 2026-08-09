@@ -29,6 +29,26 @@ def evaluate_plate_solving(raw: Any) -> list[DiagnosticFinding]:
             )
         ]
 
+    configured = get_value(raw, "Configured")
+    if isinstance(configured, bool):
+        if configured:
+            return []
+        return [
+            DiagnosticFinding(
+                code="plate_solving.not_configured",
+                component=component,
+                issue="The active NINA profile has no primary plate solver configured.",
+                evidence=[
+                    evidence(component, "PlateSolverType", get_value(raw, "PlateSolverType"))
+                ],
+                severity=Severity.ERROR,
+                confidence=Confidence.HIGH,
+                impact=FindingImpact.BLOCKING,
+                recommended_action="Configure a primary plate solver in the active NINA profile.",
+                retry_variable="plate_solver_configuration",
+            )
+        ]
+
     findings: list[DiagnosticFinding] = []
     reported_error = reported_error_finding(component, raw)
     if reported_error:

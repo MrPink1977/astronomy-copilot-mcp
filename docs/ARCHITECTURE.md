@@ -96,7 +96,8 @@ The Copilot state layer must use events for responsiveness and live status snaps
 
 Phase 5 adds `astronomy_copilot.services.session` beside, not inside, the raw event subscriber.
 It consumes NINA websocket events for responsive updates and reconciles those hints against a
-reviewed HTTP equipment, plate-solver, and sequence snapshot at startup and after reconnects.
+reviewed HTTP equipment, active-profile plate-solver configuration, and sequence snapshot at
+startup and after reconnects.
 Snapshots are authoritative; contradictory telemetry becomes `ERROR`, and a restart begins at
 non-authoritative `STARTING` rather than carrying a prior `SAFE` claim forward.
 
@@ -126,10 +127,14 @@ may run bounded Level 1 steps, but it stops before centering and returns the exa
 action plan. Resumption requires the same workflow parameters and that exact unconsumed plan ID.
 
 Workflow records retain current step states, action results, bounded recovery-variable changes, and
-a structured workflow timeline. Every execution and resume refreshes positive safety-monitor,
-contradiction, session-state, and telemetry-age evidence. Failures reconcile and return the known
-session timeline plus readiness instead of silently continuing. Plate-solve retry changes only
-solve exposure and is limited to at most three attempts.
+a structured workflow timeline. Every execution and resume refreshes safety, contradiction,
+session-state, and telemetry-age evidence. A connected safety monitor must positively report safe.
+Only an active profile that explicitly reports `No_Device` may use the exact operator safety
+attestation, and that attestation expires after five minutes. It never overrides connected monitor
+telemetry. Failures reconcile and return the known session timeline plus readiness instead of
+silently continuing. Plate-solve readiness comes from the supported read-only active-profile route;
+the blocking solve result remains authoritative. Retry changes only solve exposure and is limited
+to at most three attempts.
 
 ## Test architecture
 

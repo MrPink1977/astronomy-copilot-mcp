@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -41,6 +42,17 @@ class PrepareForImagingInput(BaseModel):
     guiding_settle_timeout_seconds: float = Field(default=30.0, ge=1.0, le=120.0)
     max_telemetry_age_seconds: float = Field(default=10.0, ge=1.0, le=60.0)
     timeout_seconds: float = Field(default=120.0, ge=1.0, le=600.0)
+    operator_safety_attestation: Literal["OPERATOR_CONFIRMS_SAFE"] | None = Field(
+        default=None,
+        description=(
+            "Explicit operator attestation used only when the active NINA profile proves that "
+            "no safety monitor is configured."
+        ),
+    )
+    operator_safety_attested_at: datetime | None = Field(
+        default=None,
+        description="UTC timestamp for the short-lived operator safety attestation.",
+    )
     dry_run: bool = True
     approved: bool = False
     workflow_id: str | None = Field(default=None, max_length=64)

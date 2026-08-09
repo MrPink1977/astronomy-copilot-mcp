@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
 from astronomy_copilot.adapters.nina import NinaActionAdapter
@@ -21,14 +23,11 @@ def workflow_scenario(nina_fixture):
     scenario = nina_fixture("healthy_status.json")
     scenario.update(nina_fixture("phase5_session.json"))
     scenario.update(nina_fixture("phase7_workflow.json"))
+    scenario["profile/show"] = nina_fixture("active_profile.json")
     scenario["equipment/mount/info"]["Response"].update(
         {"AtPark": False, "Slewing": False, "Tracking": True}
     )
     scenario["equipment/guider/info"]["Response"]["State"] = "Stopped"
-    scenario["plate-solve/status"]["Response"] = {
-        "Running": False,
-        "CurrentOperation": "Idle",
-    }
     return scenario
 
 
@@ -277,6 +276,7 @@ async def test_exhausted_solve_recovery_stops_with_known_state(nina_mock_server,
 async def test_unsafe_monitor_stops_before_any_write(nina_mock_server, nina_fixture):
     scenario = workflow_scenario(nina_fixture)
     scenario["equipment/safetymonitor/info"]["Response"]["IsSafe"] = False
+    scenario["profile/show"]["Response"]["SafetyMonitorSettings"]["Id"] = "No_Device"
     service = build_workflow(nina_mock_server, scenario)
     proposed = await service.prepare(workflow_request())
 
@@ -285,6 +285,8 @@ async def test_unsafe_monitor_stops_before_any_write(nina_mock_server, nina_fixt
             dry_run=False,
             approved=True,
             workflow_id=proposed.workflow_id,
+            operator_safety_attestation="OPERATOR_CONFIRMS_SAFE",
+            operator_safety_attested_at=datetime.now(timezone.utc),
         )
     )
 
@@ -296,6 +298,113 @@ async def test_unsafe_monitor_stops_before_any_write(nina_mock_server, nina_fixt
         "equipment/guider/start",
     }
     assert write_endpoints.isdisjoint(nina_mock_server.requests)
+
+
+async def test_absent_monitor_requires_current_operator_attestation(
+    nina_mock_server, nina_fixture
+):
+    scenario = workflow_scenario(nina_fixture)
+    scenario["equipment/safetymonitor/info"]["Response"] = {
+        "Connected": False,
+        "IsSafe": False,
+    }
+    scenario["profile/show"]["Response"]["SafetyMonitorSettings"]["Id"] = "No_Device"
+    service = build_workflow(nina_mock_server, scenario)
+    proposed = await service.prepare(workflow_request(max_plate_solve_attempts=1))
+
+    failed = await service.prepare(
+        workflow_request(
+            max_plate_solve_attempts=1,
+            dry_run=False,
+            approved=True,
+            workflow_id=proposed.workflow_id,
+        )
+    )
+
+    assert failed.status == WorkflowStatus.FAILED
+    assert "operator safety attestation is required" in failed.summary
+    assert "equipment/camera/capture" not in nina_mock_server.requests
+
+
+async def test_current_attestation_for_absent_monitor_reaches_motion_boundary(
+    nina_mock_server, nina_fixture
+):
+    scenario = workflow_scenario(nina_fixture)
+    scenario["equipment/safetymonitor/info"]["Response"] = {
+        "Connected": False,
+        "IsSafe": False,
+    }
+    scenario["profile/show"]["Response"]["SafetyMonitorSettings"]["Id"] = "No_Device"
+    service = build_workflow(nina_mock_server, scenario)
+    proposed = await service.prepare(workflow_request(max_plate_solve_attempts=1))
+
+    paused = await service.prepare(
+        workflow_request(
+            max_plate_solve_attempts=1,
+            dry_run=False,
+            approved=True,
+            workflow_id=proposed.workflow_id,
+            operator_safety_attestation="OPERATOR_CONFIRMS_SAFE",
+            operator_safety_attested_at=datetime.now(timezone.utc),
+        )
+    )
+
+    assert paused.status == WorkflowStatus.AWAITING_APPROVAL
+    assert paused.required_approval is not None
+    assert "equipment/mount/slew" not in nina_mock_server.requests
+
+
+async def test_expired_attestation_for_absent_monitor_stops_before_write(
+    nina_mock_server, nina_fixture
+):
+    scenario = workflow_scenario(nina_fixture)
+    scenario["equipment/safetymonitor/info"]["Response"] = {
+        "Connected": False,
+        "IsSafe": False,
+    }
+    scenario["profile/show"]["Response"]["SafetyMonitorSettings"]["Id"] = "No_Device"
+    service = build_workflow(nina_mock_server, scenario)
+    proposed = await service.prepare(workflow_request())
+
+    failed = await service.prepare(
+        workflow_request(
+            dry_run=False,
+            approved=True,
+            workflow_id=proposed.workflow_id,
+            operator_safety_attestation="OPERATOR_CONFIRMS_SAFE",
+            operator_safety_attested_at=datetime.now(timezone.utc) - timedelta(minutes=6),
+        )
+    )
+
+    assert failed.status == WorkflowStatus.FAILED
+    assert "expired" in failed.summary
+    assert "equipment/camera/capture" not in nina_mock_server.requests
+
+
+async def test_disconnected_configured_monitor_cannot_use_attestation(
+    nina_mock_server, nina_fixture
+):
+    scenario = workflow_scenario(nina_fixture)
+    scenario["equipment/safetymonitor/info"]["Response"] = {
+        "Connected": False,
+        "IsSafe": False,
+    }
+    service = build_workflow(nina_mock_server, scenario)
+    proposed = await service.prepare(workflow_request())
+
+    failed = await service.prepare(
+        workflow_request(
+            dry_run=False,
+            approved=True,
+            workflow_id=proposed.workflow_id,
+            operator_safety_attestation="OPERATOR_CONFIRMS_SAFE",
+            operator_safety_attested_at=datetime.now(timezone.utc),
+        )
+    )
+
+    assert failed.status == WorkflowStatus.FAILED
+    assert "configured safety monitor is disconnected" in failed.summary
+    assert "equipment/camera/capture" not in nina_mock_server.requests
 
 
 async def test_contradictory_mount_telemetry_stops_before_any_write(nina_mock_server, nina_fixture):

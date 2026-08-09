@@ -35,6 +35,7 @@ def configured_services(nina_mock_server, scenario):
 def phase5_scenario(nina_fixture):
     scenario = nina_fixture("healthy_status.json")
     scenario.update(nina_fixture("phase5_session.json"))
+    scenario["profile/show"] = nina_fixture("active_profile.json")
     return scenario
 
 

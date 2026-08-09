@@ -34,9 +34,6 @@ class NinaReadOnlyAdapter:
         "weather": "equipment/weather/info",
         "switch": "equipment/switch/info",
     }
-    DIAGNOSTIC_ENDPOINTS = {
-        "plate_solving": "plate-solve/status",
-    }
     SESSION_ENDPOINTS = {
         "sequence": "sequence/state",
     }
@@ -45,9 +42,21 @@ class NinaReadOnlyAdapter:
         self.base_url = f"http://{host}:{port}/v2/api"
         self.timeout_seconds = timeout_seconds
 
-    async def _get(self, session: aiohttp.ClientSession, endpoint: str) -> Any:
+    async def _get(
+        self,
+        session: aiohttp.ClientSession,
+        endpoint: str,
+        *,
+        params: dict[str, str | int | float | bool] | None = None,
+    ) -> Any:
+        encoded_params = {
+            key: str(value).lower() if isinstance(value, bool) else value
+            for key, value in (params or {}).items()
+        }
         try:
-            async with session.get(f"{self.base_url}/{endpoint}") as response:
+            async with session.get(
+                f"{self.base_url}/{endpoint}", params=encoded_params
+            ) as response:
                 if response.status != 200:
                     raise NinaResponseError(f"{endpoint} returned HTTP {response.status}")
                 payload = await response.json()
@@ -59,6 +68,48 @@ class NinaReadOnlyAdapter:
         if not isinstance(payload, dict) or payload.get("Success") is not True:
             raise NinaResponseError(f"{endpoint} returned an unsuccessful response")
         return payload.get("Response")
+
+    @staticmethod
+    def _value(mapping: Any, name: str) -> Any:
+        if not isinstance(mapping, dict):
+            return None
+        for key, value in mapping.items():
+            if str(key).casefold() == name.casefold():
+                return value
+        return None
+
+    @classmethod
+    def _configuration_from_profile(cls, profile: Any) -> dict[str, Any]:
+        if not isinstance(profile, dict):
+            raise NinaResponseError("profile/show returned malformed active-profile data")
+
+        safety_settings = cls._value(profile, "SafetyMonitorSettings")
+        safety_id = cls._value(safety_settings, "Id")
+        if not isinstance(safety_id, str) or not safety_id.strip():
+            raise NinaResponseError("profile/show omitted safety-monitor configuration")
+        safety_configured = safety_id.strip().casefold() != "no_device"
+
+        plate_settings = cls._value(profile, "PlateSolveSettings")
+        plate_solver = cls._value(plate_settings, "PlateSolverType")
+        blind_solver = cls._value(plate_settings, "BlindSolverType")
+        plate_configured = isinstance(plate_solver, str) and bool(plate_solver.strip())
+        telescope_settings = cls._value(profile, "TelescopeSettings")
+
+        return {
+            "safety_monitor": {
+                "Configured": safety_configured,
+                "ConfigurationState": "configured" if safety_configured else "not_configured",
+            },
+            "plate_solving": {
+                "Configured": plate_configured,
+                "PlateSolverType": plate_solver,
+                "BlindSolverType": blind_solver,
+                "ExposureTime": cls._value(plate_settings, "ExposureTime"),
+                "Binning": cls._value(plate_settings, "Binning"),
+                "FocalLength": cls._value(telescope_settings, "FocalLength"),
+                "Source": "active_profile",
+            },
+        }
 
     async def _get_snapshot(
         self,
@@ -72,9 +123,14 @@ class NinaReadOnlyAdapter:
             if not isinstance(version, str) or not version.strip():
                 raise NinaResponseError("version returned a malformed response")
 
-            async def read_component(name: str, endpoint: str) -> tuple[str, Any]:
+            async def read_component(
+                name: str,
+                endpoint: str,
+                *,
+                params: dict[str, str | int | float | bool] | None = None,
+            ) -> tuple[str, Any]:
                 try:
-                    return name, await self._get(session, endpoint)
+                    return name, await self._get(session, endpoint, params=params)
                 except NinaResponseError as exc:
                     return name, exc
 
@@ -86,13 +142,26 @@ class NinaReadOnlyAdapter:
             )
             snapshot = {"version": version, "equipment": dict(equipment_results)}
             if include_diagnostics:
-                diagnostic_results = await asyncio.gather(
-                    *(
-                        read_component(name, endpoint)
-                        for name, endpoint in self.DIAGNOSTIC_ENDPOINTS.items()
-                    )
+                _, active_profile = await read_component(
+                    "active_profile",
+                    "profile/show",
+                    params={"active": True},
                 )
-                snapshot["diagnostics"] = dict(diagnostic_results)
+                if isinstance(active_profile, Exception):
+                    configuration: dict[str, Any] | Exception = active_profile
+                else:
+                    try:
+                        configuration = self._configuration_from_profile(active_profile)
+                    except NinaResponseError as exc:
+                        configuration = exc
+                snapshot["configuration"] = configuration
+                snapshot["diagnostics"] = {
+                    "plate_solving": (
+                        configuration.get("plate_solving")
+                        if isinstance(configuration, dict)
+                        else configuration
+                    )
+                }
             if include_session:
                 session_results = await asyncio.gather(
                     *(

@@ -19,8 +19,10 @@ the same operational parameters.
 
 Approved execution performs only these steps before pausing:
 
-1. Require fresh, non-contradictory session telemetry and a connected safety monitor reporting
-   `IsSafe=true`.
+1. Require fresh, non-contradictory session telemetry. A connected safety monitor must report
+   `IsSafe=true`. When the read-only active profile explicitly reports
+   `SafetyMonitorSettings.Id=No_Device`, execution may instead use the exact
+   `OPERATOR_CONFIRMS_SAFE` attestation with a timestamp no more than five minutes old.
 2. Connect the required configured camera, mount, and optional guider through the existing Level 1
    action.
 3. Recheck safety and readiness.
@@ -45,10 +47,18 @@ boundary under the same server-enforced policy.
 
 ## Failure behavior
 
-Unsafe, missing-safety, contradictory, stale, offline, busy, or invalid state stops the workflow.
+Unsafe, unproved safety-monitor absence, missing or expired operator attestation, contradictory,
+stale, offline, busy, or invalid state stops the workflow. A disconnected configured monitor,
+unknown monitor configuration, or connected monitor reporting unsafe cannot be overridden by an
+operator attestation.
 Failed actions and exhausted solve recovery also stop. A failed workflow cannot silently resume or
 repeat completed actions. Its response includes attempted action results, changed variables, final
 readiness, and the reconciled known session timeline.
+
+Advanced API 2.2.15.2 does not implement the previously assumed `plate-solve/status` route.
+Readiness uses its supported read-only `profile/show?active=true` endpoint and sanitizes the active
+`PlateSolveSettings`. The actual solve remains the bounded, blocking `prepared-image/solve` action,
+so configuration readiness is never reported as a successful solve.
 
 ## Hardware acceptance
 
@@ -58,12 +68,11 @@ separately gated by `ALLOW_HARDWARE_TESTS`, `ALLOW_PHYSICAL_MOTION`, and
 the approved pre-motion slice and must stop at the centering plan. A human must inspect and submit
 that exact plan before any Level 2 motion.
 
-Current checkpoint: a local read-only NINA snapshot was reachable and internally consistent on
-2026-08-08, with session state `CONNECTED`, but its safety monitor reported disconnected and
-`IsSafe=false`. All three live workflow opt-ins were also unset. The workflow would stop before any
-write under those conditions, so no live camera write or mount motion was performed. Full daylight
-hardware acceptance remains blocked until the safety signal is positive and the separate opt-ins
-and exact motion approval are supplied; it is never inferred from a green hosted CI result.
+Current checkpoint: the live compatibility fix is being validated without hardware writes. This
+observatory's active profile explicitly reports that no safety monitor is configured, so the live
+harness additionally requires a fresh operator attestation and timestamp. The three hardware flags
+remain separate selection opt-ins and are not supplied by the attestation. The harness still stops
+at the centering plan; a human must separately inspect and submit that exact plan before motion.
 
 ## Local gate
 

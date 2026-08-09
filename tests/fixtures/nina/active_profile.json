@@ -1,0 +1,19 @@
+{
+  "Response": {
+    "SafetyMonitorSettings": {
+      "Id": "ASCOM.Simulator.SafetyMonitor"
+    },
+    "PlateSolveSettings": {
+      "PlateSolverType": "ASTAP",
+      "BlindSolverType": "ASTAP",
+      "ExposureTime": 3,
+      "Binning": 1
+    },
+    "TelescopeSettings": {
+      "FocalLength": 600
+    }
+  },
+  "StatusCode": 200,
+  "Success": true,
+  "Type": "API"
+}

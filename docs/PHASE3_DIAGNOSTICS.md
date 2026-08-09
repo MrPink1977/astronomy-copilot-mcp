@@ -17,19 +17,22 @@ settings, or execute the returned recommendations.
 Rules consume reviewed fields from the existing NINA status endpoints:
 
 - Camera: `Connected`, `CameraState`/`State`, `IsExposing`, and an explicitly reported error.
-- Mount: `Connected`, `AtPark`/`IsParked`, `Slewing`/`IsSlewing`, `Tracking`/`IsTracking`, and an
-  explicitly reported error.
+- Mount: `Connected`, `AtPark`/`IsParked`, `Slewing`/`IsSlewing`,
+  `Tracking`/`IsTracking`/`TrackingEnabled`, and an explicitly reported error.
 - Guider: `Connected`, `State`, and an explicitly reported error.
-- Plate solving: `Running`, `CurrentOperation`/`State`, and an explicitly reported error from the
-  compatibility endpoint documented by the bundled raw MCP.
+- Plate solving: the primary and blind solver selections from the active profile's
+  `PlateSolveSettings`.
 
 The camera, mount, and guider fields match the Advanced API response models in
 [`Camera.cs`](https://github.com/christian-photo/ninaAPI/blob/dev/ninaAPI/WebService/V2/Equipment/Camera.cs),
 [`Mount.cs`](https://github.com/christian-photo/ninaAPI/blob/dev/ninaAPI/WebService/V2/Equipment/Mount.cs),
 and
 [`Guider.cs`](https://github.com/christian-photo/ninaAPI/blob/dev/ninaAPI/WebService/V2/Equipment/Guider.cs).
-The plate-solve status route is treated as optional compatibility telemetry: an unavailable or
-malformed response becomes `UNKNOWN`, never an inferred solver fault.
+Advanced API 2.2.x does not publish the previously assumed `plate-solve/status` route. Readiness
+uses the supported read-only `profile/show?active=true` route instead. Missing or malformed profile
+data becomes `UNKNOWN`; an explicitly empty primary-solver selection is blocking. Configuration
+evidence does not claim that a solve has run or will succeed. The blocking
+`prepared-image/solve` action remains the authoritative execution result.
 
 ## Deterministic rule set
 
@@ -46,8 +49,7 @@ malformed response becomes `UNKNOWN`, never an inferred solver fault.
 | Guider | looping without guiding | `BLOCKING` | select guide star / `guider_star_selection` |
 | Guider | stopped | `BLOCKING` | start guiding / `guider_running_state` |
 | Guider | calibrating, settling, or dithering | `WARNING` | wait / `guider_state` |
-| Plate solving | explicit failure | `BLOCKING` | inspect result / `plate_solve_failure_condition` |
-| Plate solving | running | `WARNING` | wait / `plate_solve_running_state` |
+| Plate solving | no configured primary solver | `BLOCKING` | configure solver / `plate_solver_configuration` |
 | Any required signal | absent or malformed | `UNKNOWN` | refresh/inspect telemetry only |
 
 Every finding includes a stable code, component, issue, source-anchored evidence, severity,

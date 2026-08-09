@@ -117,26 +117,36 @@ async def test_status_service_integrates_with_partial_http_snapshot(nina_mock_se
 async def test_adapter_reads_reviewed_diagnostic_endpoint(nina_mock_server, nina_fixture):
     scenario = nina_fixture("healthy_status.json")
     nina_mock_server.set_scenario(scenario)
-    nina_mock_server.set_json("plate-solve/status", nina_fixture("plate_solve_idle.json"))
+    nina_mock_server.set_json("profile/show", nina_fixture("active_profile.json"))
 
     result = await adapter_for(nina_mock_server).get_diagnostic_snapshot()
 
     assert result["diagnostics"]["plate_solving"] == {
-        "Running": False,
-        "Progress": 100,
-        "CurrentOperation": "Idle",
+        "Configured": True,
+        "PlateSolverType": "ASTAP",
+        "BlindSolverType": "ASTAP",
+        "ExposureTime": 3,
+        "Binning": 1,
+        "FocalLength": 600,
+        "Source": "active_profile",
     }
-    assert "plate-solve/status" in nina_mock_server.requests
+    assert result["configuration"]["safety_monitor"]["Configured"] is True
+    profile_request = next(
+        detail for detail in nina_mock_server.request_details if detail.endpoint == "profile/show"
+    )
+    assert profile_request.query == {"active": "true"}
+    assert "plate-solve/status" not in nina_mock_server.requests
 
 
 async def test_readiness_service_is_ready_against_mock_http(nina_mock_server, nina_fixture):
     scenario = nina_fixture("healthy_status.json")
     scenario["equipment/mount/info"]["Response"].update(
-        {"AtPark": False, "Slewing": False, "Tracking": True}
+        {"AtPark": False, "Slewing": False, "TrackingEnabled": True}
     )
+    scenario["equipment/mount/info"]["Response"].pop("Tracking")
     scenario["equipment/guider/info"]["Response"]["State"] = "Guiding"
     nina_mock_server.set_scenario(scenario)
-    nina_mock_server.set_json("plate-solve/status", nina_fixture("plate_solve_idle.json"))
+    nina_mock_server.set_json("profile/show", nina_fixture("active_profile.json"))
 
     result = await ImagingReadinessService(adapter_for(nina_mock_server)).get_readiness()
 
@@ -145,7 +155,7 @@ async def test_readiness_service_is_ready_against_mock_http(nina_mock_server, ni
     assert result.blocking_issues == []
 
 
-async def test_missing_plate_solve_telemetry_is_unknown_not_a_fault(nina_mock_server, nina_fixture):
+async def test_missing_active_profile_is_unknown_not_a_fault(nina_mock_server, nina_fixture):
     scenario = nina_fixture("healthy_status.json")
     scenario["equipment/mount/info"]["Response"].update(
         {"AtPark": False, "Slewing": False, "Tracking": True}
@@ -160,20 +170,21 @@ async def test_missing_plate_solve_telemetry_is_unknown_not_a_fault(nina_mock_se
     assert [finding.code for finding in result.unknowns] == ["plate_solving.telemetry_unknown"]
 
 
-async def test_plate_solve_failure_blocks_mock_http_readiness(nina_mock_server, nina_fixture):
+async def test_unconfigured_plate_solver_blocks_mock_http_readiness(
+    nina_mock_server, nina_fixture
+):
     scenario = nina_fixture("healthy_status.json")
     scenario["equipment/mount/info"]["Response"].update(
         {"AtPark": False, "Slewing": False, "Tracking": True}
     )
     scenario["equipment/guider/info"]["Response"]["State"] = "Guiding"
     nina_mock_server.set_scenario(scenario)
-    nina_mock_server.set_json("plate-solve/status", nina_fixture("plate_solve_failed.json"))
+    profile = nina_fixture("active_profile.json")
+    profile["Response"]["PlateSolveSettings"]["PlateSolverType"] = ""
+    nina_mock_server.set_json("profile/show", profile)
 
     service = ImagingReadinessService(adapter_for(nina_mock_server))
     readiness = await service.get_readiness()
-    latest_error = await service.get_latest_error()
 
     assert readiness.state == "BLOCKED"
-    assert readiness.blocking_issues[0].code == "plate_solving.reported_error"
-    assert latest_error.error is not None
-    assert latest_error.error.component == "plate_solving"
+    assert readiness.blocking_issues[0].code == "plate_solving.not_configured"

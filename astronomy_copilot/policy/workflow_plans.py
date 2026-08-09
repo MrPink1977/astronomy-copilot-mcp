@@ -33,6 +33,8 @@ WORKFLOW_CONTROL_FIELDS = {
     "approved",
     "workflow_id",
     "center_approval_plan_id",
+    "operator_safety_attestation",
+    "operator_safety_attested_at",
 }
 
 
@@ -48,7 +50,10 @@ def planned_steps(require_guiding: bool) -> list[WorkflowStep]:
             step_id="preflight",
             title="Validate fresh safety and session telemetry",
             action_level=ActionLevel.READ_ONLY,
-            summary="Stop on unsafe, contradictory, stale, or unavailable safety telemetry.",
+            summary=(
+                "Require a safe connected monitor, or a fresh operator attestation only when "
+                "the active profile proves that no monitor is configured."
+            ),
         ),
         WorkflowStep(
             step_id="connect",

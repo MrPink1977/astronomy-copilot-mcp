@@ -96,3 +96,14 @@ uv run pytest tests/hardware_integration/test_phase7_workflow_gate.py -m hardwar
 
 This harness may connect configured equipment, capture bounded frames, and plate solve. It must
 stop at the Level 2 centering approval boundary; the flags are not a centering plan ID.
+
+If and only if the active NINA profile has no configured Safety Monitor, add a fresh, explicit
+operator attestation immediately before running the harness:
+
+```powershell
+$env:PHASE7_OPERATOR_SAFETY_ATTESTATION="OPERATOR_CONFIRMS_SAFE"
+$env:PHASE7_OPERATOR_SAFETY_ATTESTED_AT=(Get-Date).ToUniversalTime().ToString("o")
+```
+
+The server accepts this attestation for at most five minutes. It is rejected when a monitor is
+configured but disconnected, and it can never override a connected monitor reporting unsafe.

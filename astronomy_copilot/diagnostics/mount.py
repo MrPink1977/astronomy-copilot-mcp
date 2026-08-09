@@ -61,7 +61,7 @@ def evaluate_mount(raw: Any) -> list[DiagnosticFinding]:
 
     parked = get_value(raw, "AtPark", "IsParked")
     slewing = get_value(raw, "Slewing", "IsSlewing")
-    tracking = get_value(raw, "Tracking", "IsTracking")
+    tracking = get_value(raw, "Tracking", "IsTracking", "TrackingEnabled")
 
     missing_fields = [
         field
