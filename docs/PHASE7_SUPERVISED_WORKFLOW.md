@@ -68,11 +68,15 @@ separately gated by `ALLOW_HARDWARE_TESTS`, `ALLOW_PHYSICAL_MOTION`, and
 the approved pre-motion slice and must stop at the centering plan. A human must inspect and submit
 that exact plan before any Level 2 motion.
 
-Current checkpoint: the live compatibility fix is being validated without hardware writes. This
-observatory's active profile explicitly reports that no safety monitor is configured, so the live
-harness additionally requires a fresh operator attestation and timestamp. The three hardware flags
-remain separate selection opt-ins and are not supplied by the attestation. The harness still stops
-at the centering plan; a human must separately inspect and submit that exact plan before motion.
+Current checkpoint: a post-fix read-only live preflight on 2026-08-08 reached Advanced API
+2.2.15.2 with fresh, non-contradictory `CONNECTED` session telemetry. The active profile explicitly
+reported no configured safety monitor and configured ASTAP primary/blind solvers, so the new
+operator-attestation path is eligible and plate-solver readiness is known. No hardware write or
+motion was performed. Readiness remains blocked because mount tracking is stopped and PHD2 is
+looping without a selected guide star. Before the pre-motion harness can run, those two conditions,
+the three hardware flags, an explicit target, and a fresh operator attestation/timestamp are still
+required. The harness continues to stop at the centering plan; a human must separately inspect and
+submit that exact plan before motion.
 
 ## Local gate
 
